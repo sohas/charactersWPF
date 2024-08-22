@@ -3,11 +3,139 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows7.0</TargetFramework>
+	<RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UseWPF>true</UseWPF>
-    <SupportedOSPlatformVersion>7.0</SupportedOSPlatformVersion>
+	<UseWPF>true</UseWPF>
+	<SupportedOSPlatformVersion>7.0</SupportedOSPlatformVersion>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Notes\01MC.mp3" />
+    <None Remove="Notes\01_XsC.mp3" />
+    <None Remove="Notes\02MCs.mp3" />
+    <None Remove="Notes\02_XsCs.mp3" />
+    <None Remove="Notes\03MD.mp3" />
+    <None Remove="Notes\03_XsD.mp3" />
+    <None Remove="Notes\04MDs.mp3" />
+    <None Remove="Notes\04_XsDs.mp3" />
+    <None Remove="Notes\05ME.mp3" />
+    <None Remove="Notes\05_XsE.mp3" />
+    <None Remove="Notes\06MF.mp3" />
+    <None Remove="Notes\06_XsF.mp3" />
+    <None Remove="Notes\07MFs.mp3" />
+    <None Remove="Notes\07_XsFs.mp3" />
+    <None Remove="Notes\08MG.mp3" />
+    <None Remove="Notes\08_XsG.mp3" />
+    <None Remove="Notes\09MGs.mp3" />
+    <None Remove="Notes\09_XsGs.mp3" />
+    <None Remove="Notes\10MA.mp3" />
+    <None Remove="Notes\10_XsA.mp3" />
+    <None Remove="Notes\11MAs.mp3" />
+    <None Remove="Notes\11_XsAs.mp3" />
+    <None Remove="Notes\12MH.mp3" />
+    <None Remove="Notes\12_XsH.mp3" />
+    <None Remove="Notes\13MC.mp3" />
+    <None Remove="Notes\13_XsC.mp3" />
+    <None Remove="Notes\14MCs.mp3" />
+    <None Remove="Notes\14_XsCs.mp3" />
+    <None Remove="Notes\15MD.mp3" />
+    <None Remove="Notes\15_XsD.mp3" />
+    <None Remove="Notes\16MDs.mp3" />
+    <None Remove="Notes\16_XsDs.mp3" />
+    <None Remove="Notes\17ME.mp3" />
+    <None Remove="Notes\17_XsE.mp3" />
+    <None Remove="Notes\18MF.mp3" />
+    <None Remove="Notes\18_XsF.mp3" />
+    <None Remove="Notes\19MFs.mp3" />
+    <None Remove="Notes\19_XsFs.mp3" />
+    <None Remove="Notes\20MG.mp3" />
+    <None Remove="Notes\20_XsG.mp3" />
+    <None Remove="Notes\21MGs.mp3" />
+    <None Remove="Notes\21_XsGs.mp3" />
+    <None Remove="Notes\22MA.mp3" />
+    <None Remove="Notes\22_XsA.mp3" />
+    <None Remove="Notes\23MAs.mp3" />
+    <None Remove="Notes\23_XsAs.mp3" />
+    <None Remove="Notes\24MH.mp3" />
+    <None Remove="Notes\24_XsH.mp3" />
+    <None Remove="Notes\25_XsC.mp3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Notes\01MC.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\02MCs.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\03MD.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\04MDs.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\05ME.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\06MF.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\07MFs.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\08MG.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\09MGs.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\10MA.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\11MAs.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\12MH.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\13MC.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\14MCs.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\15MD.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\16MDs.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\17ME.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\18MF.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\19MFs.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\20MG.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\21MGs.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\22MA.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\23MAs.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Notes\24MH.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Extended.Wpf.Toolkit" Version="4.6.1" />

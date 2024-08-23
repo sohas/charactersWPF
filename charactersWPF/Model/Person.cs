@@ -1,11 +1,11 @@
 ﻿using charactersWPF.Model;
-using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.ComponentModel;
-using System.Linq;
+using System.Security.Cryptography.X509Certificates;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
@@ -28,6 +28,8 @@ namespace Characters.Model
 
 		private readonly List<double> characters = new();
 		private readonly List<Color> CharactersColors = new();
+		private readonly Dictionary<Person, double> lastImpacts = new();
+		private readonly Dictionary<Person, double> currentImpacts = new();
 		private readonly Color meanColor;
 		private Ellipse mainCircle;
 		private Canvas mainCircleCanvas;
@@ -97,6 +99,9 @@ namespace Characters.Model
 		public int ChromeStep { get; private set; }
 		public double ChromePower { get; private set; }
 
+		public Dictionary<Person, double> LastImpacts => lastImpacts;
+		public Dictionary<Person, double> CurrentImpacts => currentImpacts;
+
 		#endregion
 		public event EventHandler Strike;
 		public event PropertyChangedEventHandler? PropertyChanged;
@@ -115,11 +120,11 @@ namespace Characters.Model
 		}
 
 		#region pubic methods
-		public static void Iteration(List<Person> persons)
+		public static void Iteration(List<Person> persons, out HashSet<Person> deads, out HashSet<Person> newBorns)
 		{
-			for (var i = 0; i < persons.Count; i++)
+			foreach(var first in persons)
 			{
-				var first = persons[i];
+				//var first = persons[i];
 
 				if (first.IsCaptured)
 				{
@@ -129,14 +134,14 @@ namespace Characters.Model
 				first.forceX = 0;
 				first.forceY = 0;
 
-				for (var j = 0; j < persons.Count; j++)
+				foreach (var second in persons)
 				{
-					if (j == i)
+					if (first == second)
 					{
 						continue;
 					}
 
-					var second = persons[j];
+					//var second = persons[j];
 					first.SetForceFromSecondPerson(second);
 				}
 
@@ -145,12 +150,29 @@ namespace Characters.Model
 				first.SetNewLocation();
 			}
 
+			deads = new HashSet<Person>();
+			newBorns = new HashSet<Person>();
+
 			foreach (var person in persons)
 			{
 				person.X_LeftOnCanvas = person.newX;
 				person.Y_TopOnCanvas = person.newY;
 				person.AddWallsReaction();
+				//person.SetLastImpacts();
 				person.Rotate();
+				//var p = person.ProcessImpacts();
+
+				//if (p is not null) 
+				//{
+				//	if (p == person)
+				//	{
+				//		deads.Add(p);
+				//	}
+				//	else 
+				//	{
+				//		newBorns.Add(p);
+				//	}
+				//}
 			}
 		}
 
@@ -199,8 +221,6 @@ namespace Characters.Model
 
 			characters.Sort();
 		}
-
-
 
 		private void SetStartKinematic(Random rnd)
 		{
@@ -355,26 +375,26 @@ namespace Characters.Model
 			var distanceY = second.Y_TopOnCanvas - this.Y_TopOnCanvas;
 			var distanceSQ = distanceX * distanceX + distanceY * distanceY;
 			var distance = Math.Sqrt(distanceSQ);
-			double basicForceSum = 0;
+			double force = 0;
 
-			if (distance < 2 * Parameters.Radius)
+			foreach (var character in this.characters)
 			{
-				basicForceSum -= Parameters.Elasticity;
-				Strike?.Invoke(this, EventArgs.Empty);
-			}
-			else
-			{
-				foreach (var character in this.characters)
+				foreach (var secondCharacter in second.characters)
 				{
-					foreach (var secondCharacter in second.characters)
-					{
-						var addForce = character.GetBasicForceFrom(secondCharacter, Parameters);
-						basicForceSum += addForce / (1 + distanceSQ / (Parameters.Dimention * Parameters.Dimention));
-					}
+					force += character.GetBasicForceFrom(secondCharacter, Parameters); 
 				}
 			}
 
-			var force = basicForceSum;
+			if (distance < 2 * Parameters.Radius)
+			{
+				Strike?.Invoke(this, EventArgs.Empty);
+				currentImpacts[second] = force;
+				force = - Parameters.Elasticity;
+			}
+			else
+			{
+				force /= 1 + distanceSQ / (Parameters.Dimention * Parameters.Dimention);
+			}
 
 			if (distance == 0)
 			{
@@ -401,12 +421,14 @@ namespace Characters.Model
 				velocityX = -velocityX;
 				X_LeftOnCanvas = 3;
 				Strike?.Invoke(this, EventArgs.Empty);
+				currentImpacts[this] = -Parameters.Elasticity; 
 			}
 			else if (X_LeftOnCanvas > Parameters.MaxWidth - Parameters.Radius * 2 && velocityX >= 0)
 			{
 				velocityX = -velocityX;
 				X_LeftOnCanvas = Parameters.MaxWidth - Parameters.Radius * 2 - 3;
 				Strike?.Invoke(this, EventArgs.Empty);
+				currentImpacts[this] = -Parameters.Elasticity;
 			}
 
 			if (Y_TopOnCanvas < 0 && velocityY <= 0)
@@ -414,12 +436,14 @@ namespace Characters.Model
 				velocityY = -velocityY;
 				Y_TopOnCanvas = 3;
 				Strike?.Invoke(this, EventArgs.Empty);
+				currentImpacts[this] = -Parameters.Elasticity;
 			}
 			else if (Y_TopOnCanvas > Parameters.MaxHeight - Parameters.Radius * 2 && velocityY >= 0)
 			{
 				velocityY = -velocityY;
 				Y_TopOnCanvas = Parameters.MaxHeight - Parameters.Radius * 2 - 3;
 				Strike?.Invoke(this, EventArgs.Empty);
+				currentImpacts[this] = -Parameters.Elasticity;
 			}
 		}
 
@@ -433,6 +457,95 @@ namespace Characters.Model
 		{
 			newX = this.X_LeftOnCanvas + (velocityX * Parameters.TimeQuant) / Parameters.Dimention;
 			newY = this.Y_TopOnCanvas + (velocityY * Parameters.TimeQuant) / Parameters.Dimention;
+		}
+
+		private void SetLastImpacts() 
+		{
+			var keysToRemove = new HashSet<Person>();
+
+			foreach (var key in lastImpacts.Keys) 
+			{
+				if (!currentImpacts.ContainsKey(key)) 
+				{
+					keysToRemove.Add(key);
+				}
+			}
+
+			foreach (var key in keysToRemove) 
+			{
+				lastImpacts.Remove(key);
+			}
+
+			foreach (var key in currentImpacts.Keys)
+			{
+				if (lastImpacts.ContainsKey(key))
+				{
+					lastImpacts[key] += currentImpacts[key];
+				}
+				else 
+				{
+					lastImpacts[key] = currentImpacts[key];
+				}
+			}
+
+			currentImpacts.Clear();
+		}
+
+		public Person ProcessImpacts() 
+		{
+			bool needToGiveBirth = false;
+
+			foreach (var key in lastImpacts.Keys) 
+			{
+				if (lastImpacts[key] > Parameters.Gplus * Parameters.BurnDethThres) 
+				{
+					needToGiveBirth = true;
+					break;
+				}
+			}
+
+			if (needToGiveBirth) 
+			{
+				ClearLastImpacts();
+				var res = new Person(Parameters);
+				res.SetLocation(new Point(this.X_LeftOnCanvas, this.Y_TopOnCanvas));
+				return res;
+			}
+
+			if (lastImpacts.ContainsKey(this) && lastImpacts[this] < Parameters.Elasticity * Parameters.BurnDethThres)
+			{
+				this.ClearLastImpacts();
+				return this;
+			}
+
+			bool needToDie = false;
+
+			foreach (var key in lastImpacts.Keys)
+			{
+				if (lastImpacts[key] < Parameters.Gminus * Parameters.BurnDethThres)
+				{
+					needToDie = true;
+					break;
+				}
+			}
+
+			if (needToDie)
+			{
+				this.ClearLastImpacts();
+				return this;
+			}
+
+			return null;
+		}
+
+		private void ClearLastImpacts() 
+		{
+			foreach (Person key in lastImpacts.Keys) 
+			{
+				key.LastImpacts.Remove(this);
+			}
+
+			lastImpacts.Clear();
 		}
 	}
 }

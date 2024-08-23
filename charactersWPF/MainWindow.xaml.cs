@@ -320,10 +320,37 @@ namespace charactersWPF
 			}
 
 			timer = new Timer();
+			var t = 0;
 			timer.Interval = parameters.TimeQuant;
 			timer.Elapsed += (o, e) =>
 			{
-				Person.Iteration(persons);
+				t++;
+				if (t % 307 == 0) 
+				{
+					var u = persons.Count / 2;
+					var person = persons[u];
+					persons.Remove(person);
+					personsCanvas.Dispatcher.Invoke(() =>
+					{
+						personsCanvas.Children.Remove(person.MainCircle);
+						person.MainCircle.ClearValue(Canvas.LeftProperty);
+						person.MainCircle.ClearValue(Canvas.TopProperty);
+					});
+
+				}
+				Person.Iteration(persons, out HashSet<Person> deads, out HashSet<Person> newBorns);
+				foreach (var person in deads)
+				{
+					persons.Remove(person);
+					personsCanvas.Dispatcher.Invoke(() => personsCanvas.Children.Remove(person.MainCircle));
+				}
+				foreach (var person in newBorns)
+				{
+					persons.Add(person);
+					person.Strike += (o, e) => players[person.ChromeStep].Play(person.ChromePower);
+					personsCanvas.Dispatcher.Invoke(() => personsCanvas.Children.Add(person.MainCircle));
+					person.MainCircle.MouseDown += CapturePerson;
+				}
 			};
 
 			timer.Start();

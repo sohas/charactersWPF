@@ -18,6 +18,8 @@ namespace Characters.Model
 		public int TimeQuant { get; set; }
 		public double Dimention => 100.0;
 
+		public int BurnDethThres { get; set; } = 1000;
+
 		public BasicParameters(
 		    Size size, int radius, int maxNumberCharacterTypes, int maxNumberCharacters, int personsCount,
 		    double gPlus, double gMinus, double elasticity, double viscosity, int timeQuant)

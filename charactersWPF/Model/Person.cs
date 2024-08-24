@@ -1,13 +1,14 @@
 ﻿using charactersWPF.Model;
 using System.Collections.Concurrent;
 using System.ComponentModel;
-using System.Security.Cryptography.X509Certificates;
+using System.Timers;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Shapes;
+using Timer = System.Timers.Timer;
 
 namespace Characters.Model
 {
@@ -24,30 +25,30 @@ namespace Characters.Model
 		private double velocityY;
 		private double forceX;
 		private double forceY;
-		private double rotateAngle;
+		private double curPosImpact;
+		private double curNegImpact;
+		private double curWallImpact;
+		private double lastPosImpact;
+		private double lastNegImpact;
+		private double lastWallImpact;
 
-		private readonly List<double> characters = new();
-		private readonly List<Color> CharactersColors = new();
-		private readonly Dictionary<Person, double> lastImpacts = new();
-		private readonly Dictionary<Person, double> currentImpacts = new();
+		private readonly DateTime birthTime;
+		private PersonState state;
 		private readonly Color meanColor;
 		private Ellipse mainCircle;
 		private Canvas mainCircleCanvas;
 		private readonly double basicRotateAngle;
+
+		private readonly List<double> characters = new();
+		private readonly List<Color> charactersColors = new();
+		private readonly List<Person> persons;
+		private readonly Canvas personsCanvas;
+		private readonly Dictionary<int, Player> soundPlayers;
+
+		private Timer killTimer = new Timer();
 		#endregion
 
 		#region public properties
-		public Ellipse MainCircle => mainCircle;
-		public Canvas MainCircleCanvas => mainCircleCanvas;
-		public bool IsCaptured
-		{
-			get; set;
-		}
-		public Point CaptureDiff
-		{
-			get; set;
-		}
-
 		public double X_LeftOnCanvas
 		{
 			get
@@ -80,99 +81,83 @@ namespace Characters.Model
 			}
 		}
 
-		public double RotateAngle
-		{
-			get
-			{
-				return rotateAngle;
-			}
-			set
-			{
-				if (rotateAngle != value)
-				{
-					rotateAngle = value;
-					NotifyPropertyChanged("RotateAngle");
-				}
-			}
-		}
-
 		public int ChromeStep { get; private set; }
-		public double ChromePower { get; private set; }
-
-		public Dictionary<Person, double> LastImpacts => lastImpacts;
-		public Dictionary<Person, double> CurrentImpacts => currentImpacts;
-
 		#endregion
+
 		public event EventHandler Strike;
 		public event PropertyChangedEventHandler? PropertyChanged;
 
-		public Person(BasicParameters parameters)
+		public Person(BasicParameters parameters, List<Person> persons, Canvas personsCanvas, 
+			Dictionary<int, Player> soundPlayers, object locker)
 		{
 			Parameters ??= parameters;
+			birthTime = DateTime.Now;
+			state = PersonState.NewBorn;
+
+			this.persons = persons;
+			lock (locker)
+			{
+				persons.Add(this);
+			}
 
 			var rnd = new Random();
-			SetCharecters(rnd);
 			SetStartKinematic(rnd);
-			CharactersColors = characters.Select(x => GetColor(x)).ToList();
-			meanColor = GetMeanColor(CharactersColors);
-			SetCircles();
+			SetCharecters(rnd);
+			charactersColors = characters.Select(x => GetColor(x)).ToList();
+			meanColor = GetMeanColor(charactersColors);
 			basicRotateAngle = rnd.NextDouble() * 5;
+			BuildMainCanvasAndAllCircles();
+			this.personsCanvas = personsCanvas;
+			personsCanvas.Children.Add(mainCircleCanvas);
+
+			this.soundPlayers = soundPlayers;
+			Strike += (o, e) => soundPlayers[ChromeStep].Play();
+
+			killTimer.Interval = Parameters.DeathInterval;
+			killTimer.Elapsed += Dieing;
 		}
 
 		#region pubic methods
-		public static void Iteration(List<Person> persons, out HashSet<Person> deads, out HashSet<Person> newBorns)
+		public static void Iteration(List<Person> persons, ConcurrentBag<Person> deads, ConcurrentBag<Point> newBorns, object locker)
 		{
-			foreach(var first in persons)
+			lock (locker)
 			{
-				//var first = persons[i];
-
-				if (first.IsCaptured)
+				foreach (var first in persons)
 				{
-					continue;
-				}
-
-				first.forceX = 0;
-				first.forceY = 0;
-
-				foreach (var second in persons)
-				{
-					if (first == second)
+					if (first.state == PersonState.Dead)
 					{
 						continue;
 					}
 
-					//var second = persons[j];
-					first.SetForceFromSecondPerson(second);
-				}
+					first.forceX = 0;
+					first.forceY = 0;
 
-				first.SetNewVelocity();
-				first.AddViscosity();
-				first.SetNewLocation();
+					foreach (var second in persons)
+					{
+						if (first == second || second.state == PersonState.Dead)
+						{
+							continue;
+						}
+
+
+						first.SetForceAndImpactFromSecondPerson(second);
+					}
+
+					first.SetNewVelocity();
+					first.AddViscosity();
+					first.SetNewLocation();
+				}
 			}
 
-			deads = new HashSet<Person>();
-			newBorns = new HashSet<Person>();
-
-			foreach (var person in persons)
+			lock (locker)
 			{
-				person.X_LeftOnCanvas = person.newX;
-				person.Y_TopOnCanvas = person.newY;
-				person.AddWallsReaction();
-				//person.SetLastImpacts();
-				person.Rotate();
-				//var p = person.ProcessImpacts();
-
-				//if (p is not null) 
-				//{
-				//	if (p == person)
-				//	{
-				//		deads.Add(p);
-				//	}
-				//	else 
-				//	{
-				//		newBorns.Add(p);
-				//	}
-				//}
+				foreach (var person in persons)
+				{
+					person.X_LeftOnCanvas = person.newX;
+					person.Y_TopOnCanvas = person.newY;
+					person.AddWallsReactionAndImpact();
+					person.ProcessImpacts(deads, newBorns);
+				}
 			}
 		}
 
@@ -181,11 +166,41 @@ namespace Characters.Model
 			X_LeftOnCanvas = newX = location.X;
 			Y_TopOnCanvas = newY = location.Y;
 		}
+
+		public void Kill() 
+		{
+			state = PersonState.Dead;
+
+			mainCircle.Dispatcher.Invoke(() =>
+			{
+				ColorAnimation ca = new ColorAnimation(
+					((SolidColorBrush)personsCanvas.Background).Color, 
+					new Duration(TimeSpan.FromMilliseconds(Parameters.DeathInterval)));
+
+				foreach (Ellipse circle in mainCircleCanvas.Children) 
+				{
+					circle.Fill.BeginAnimation(SolidColorBrush.ColorProperty, ca);
+
+					if (circle == mainCircle) 
+					{
+						circle.Stroke.BeginAnimation(SolidColorBrush.ColorProperty, ca);
+					}
+				}
+
+				mainCircleCanvas.RenderTransform = null;
+			});
+
+			killTimer.Start();
+		}
 		#endregion
 
-		private void NotifyPropertyChanged(string v)
+		#region setup
+		private void SetStartKinematic(Random rnd)
 		{
-			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(v));
+			this.velocityX = 0;
+			this.velocityY = 0;
+			this.X_LeftOnCanvas = rnd.NextDouble() * (Parameters.MaxWidth - Parameters.Radius * 2);
+			this.Y_TopOnCanvas = rnd.NextDouble() * (Parameters.MaxHeight - Parameters.Radius * 2);
 		}
 
 		private void SetCharecters(Random rnd)
@@ -214,84 +229,11 @@ namespace Characters.Model
 				Math.Acos(xAccum / r) :
 				Math.PI * 2 - Math.Acos(xAccum / r);
 
-			ChromePower = r / charactersNumber;
 			ChromeStep = (int)(ang / (Math.PI * 2) * Parameters.MaxNumberCharacterTypes);
 			ChromeStep = ChromeStep % 2 == 0 ? ChromeStep / 2 * 7 : (ChromeStep - 1) / 2 * 7 + 4;
 			ChromeStep %= 24;
 
 			characters.Sort();
-		}
-
-		private void SetStartKinematic(Random rnd)
-		{
-			this.velocityX = 0;
-			this.velocityY = 0;
-			this.X_LeftOnCanvas = rnd.NextDouble() * (Parameters.MaxWidth - Parameters.Radius * 2);
-			this.Y_TopOnCanvas = rnd.NextDouble() * (Parameters.MaxHeight - Parameters.Radius * 2);
-		}
-
-		private void SetCircles()
-		{
-			mainCircleCanvas = new Canvas()
-			{
-				Width = Parameters.Radius * 2,
-				Height = Parameters.Radius * 2,
-				Background = Brushes.Transparent,
-				DataContext = this,
-			};
-
-			Binding blc = new Binding("X_LeftOnCanvas");
-			blc.Mode = BindingMode.TwoWay;
-			mainCircleCanvas.SetBinding(Canvas.LeftProperty, blc);
-
-			Binding btc = new Binding("Y_TopOnCanvas");
-			btc.Mode = BindingMode.TwoWay;
-			mainCircleCanvas.SetBinding(Canvas.TopProperty, btc);
-
-			Binding bta = new Binding("RotateAngle");
-			bta.Mode = BindingMode.TwoWay;
-			bta.Converter = new RotateConverter(Parameters.Radius, Parameters.Radius);
-			mainCircleCanvas.SetBinding(Canvas.RenderTransformProperty, bta);
-
-			mainCircle = new Ellipse()
-			{
-				Width = Parameters.Radius * 2,
-				Height = Parameters.Radius * 2,
-				Fill = new SolidColorBrush(meanColor),
-				Stroke = Brushes.White,
-				StrokeThickness = 0.3,
-				DataContext = this,
-			};
-
-			mainCircle.SetValue(Canvas.LeftProperty, 0.0);
-			mainCircle.SetValue(Canvas.TopProperty, 0.0);
-			mainCircleCanvas.Children.Add(mainCircle);
-
-			var sina0 = Math.Sin(Math.PI / Parameters.MaxNumberCharacters);
-			var d = 2 * Parameters.Radius * sina0 / (1 + sina0);
-
-			for (var i = 0; i < CharactersColors.Count; i++)
-			{
-				var a = i * 2 * Math.PI / CharactersColors.Count;
-
-				var ell = new Ellipse()
-				{
-					Width = d,
-					Height = d,
-					Fill = new SolidColorBrush(CharactersColors[i])
-				};
-
-				var dx = Parameters.Radius + (Parameters.Radius - d / 2) * Math.Sin(a) - d / 2;
-				var dy = Parameters.Radius - (Parameters.Radius - d / 2) * Math.Cos(a) - d / 2;
-				ell.SetValue(Canvas.LeftProperty, dx);
-				ell.SetValue(Canvas.TopProperty, dy);
-				mainCircleCanvas.Children.Add(ell);
-			}
-		}
-
-		private void Rotate()
-		{
-			RotateAngle += basicRotateAngle;
 		}
 
 		private static Color GetColor(double index0)
@@ -369,13 +311,83 @@ namespace Characters.Model
 			return Color.FromArgb((byte)(2 * a / 3), (byte)r, (byte)g, (byte)b);
 		}
 
-		private void SetForceFromSecondPerson(Person second)
+		private void BuildMainCanvasAndAllCircles()
 		{
+			mainCircleCanvas = new Canvas()
+			{
+				Width = Parameters.Radius * 2,
+				Height = Parameters.Radius * 2,
+				Background = Brushes.Transparent,
+				DataContext = this,
+			};
+
+			Binding blc = new Binding("X_LeftOnCanvas");
+			blc.Mode = BindingMode.TwoWay;
+			mainCircleCanvas.SetBinding(Canvas.LeftProperty, blc);
+
+			Binding btc = new Binding("Y_TopOnCanvas");
+			btc.Mode = BindingMode.TwoWay;
+			mainCircleCanvas.SetBinding(Canvas.TopProperty, btc);
+
+			mainCircle = new Ellipse()
+			{
+				Width = Parameters.Radius * 2,
+				Height = Parameters.Radius * 2,
+				Fill = new SolidColorBrush(meanColor),
+				Stroke = new SolidColorBrush(Brushes.White.Color),
+				StrokeThickness = 0.1,
+				DataContext = this,
+			};
+
+			mainCircle.SetValue(Canvas.LeftProperty, 0.0);
+			mainCircle.SetValue(Canvas.TopProperty, 0.0);
+			mainCircleCanvas.Children.Add(mainCircle);
+
+			var sina0 = Math.Sin(Math.PI / Parameters.MaxNumberCharacters);
+			var d = 2 * Parameters.Radius * sina0 / (1 + sina0);
+
+			for (var i = 0; i < charactersColors.Count; i++)
+			{
+				var a = i * 2 * Math.PI / charactersColors.Count;
+
+				var ell = new Ellipse()
+				{
+					Width = d,
+					Height = d,
+					Fill = new SolidColorBrush(charactersColors[i])
+				};
+
+				var dx = Parameters.Radius + (Parameters.Radius - d / 2) * Math.Sin(a) - d / 2;
+				var dy = Parameters.Radius - (Parameters.Radius - d / 2) * Math.Cos(a) - d / 2;
+				ell.SetValue(Canvas.LeftProperty, dx);
+				ell.SetValue(Canvas.TopProperty, dy);
+				mainCircleCanvas.Children.Add(ell);
+			}
+
+			mainCircleCanvas.RenderTransform = new RotateTransform(0, Parameters.Radius, Parameters.Radius);
+
+			var rotateAnimation = new DoubleAnimation()
+			{
+				From = 0,
+				By = 360,
+				Duration = TimeSpan.FromMilliseconds(Parameters.TimeQuant * 360 / (basicRotateAngle == 0 ? 1 : basicRotateAngle)),
+				RepeatBehavior = RepeatBehavior.Forever,
+			};
+			mainCircleCanvas.RenderTransform.BeginAnimation(RotateTransform.AngleProperty, rotateAnimation);
+		}
+		#endregion
+
+		#region dynamics
+		private void SetForceAndImpactFromSecondPerson(Person second)
+		{
+			double force = 0;
+			curNegImpact = 0;
+			curPosImpact = 0;
+
 			var distanceX = second.X_LeftOnCanvas - this.X_LeftOnCanvas;
 			var distanceY = second.Y_TopOnCanvas - this.Y_TopOnCanvas;
 			var distanceSQ = distanceX * distanceX + distanceY * distanceY;
 			var distance = Math.Sqrt(distanceSQ);
-			double force = 0;
 
 			foreach (var character in this.characters)
 			{
@@ -388,7 +400,16 @@ namespace Characters.Model
 			if (distance < 2 * Parameters.Radius)
 			{
 				Strike?.Invoke(this, EventArgs.Empty);
-				currentImpacts[second] = force;
+
+				if (force < 0) 
+				{
+					curNegImpact = force;
+				}
+				else 
+				{
+					curPosImpact = force;
+				}
+				
 				force = - Parameters.Elasticity;
 			}
 			else
@@ -405,6 +426,12 @@ namespace Characters.Model
 			forceY += (distanceY / distance) * force;
 		}
 
+		private void SetNewVelocity()
+		{
+			velocityX += forceX * Parameters.TimeQuant / Parameters.Dimention;
+			velocityY += forceY * Parameters.TimeQuant / Parameters.Dimention;
+		}
+
 		private void AddViscosity()
 		{
 			var vsqr = (velocityX * velocityX + velocityY * velocityY);
@@ -414,138 +441,72 @@ namespace Characters.Model
 			velocityY /= (1 + vsqr * visc);
 		}
 
-		private void AddWallsReaction()
-		{
-			if (X_LeftOnCanvas < 0 && velocityX <= 0)
-			{
-				velocityX = -velocityX;
-				X_LeftOnCanvas = 3;
-				Strike?.Invoke(this, EventArgs.Empty);
-				currentImpacts[this] = -Parameters.Elasticity; 
-			}
-			else if (X_LeftOnCanvas > Parameters.MaxWidth - Parameters.Radius * 2 && velocityX >= 0)
-			{
-				velocityX = -velocityX;
-				X_LeftOnCanvas = Parameters.MaxWidth - Parameters.Radius * 2 - 3;
-				Strike?.Invoke(this, EventArgs.Empty);
-				currentImpacts[this] = -Parameters.Elasticity;
-			}
-
-			if (Y_TopOnCanvas < 0 && velocityY <= 0)
-			{
-				velocityY = -velocityY;
-				Y_TopOnCanvas = 3;
-				Strike?.Invoke(this, EventArgs.Empty);
-				currentImpacts[this] = -Parameters.Elasticity;
-			}
-			else if (Y_TopOnCanvas > Parameters.MaxHeight - Parameters.Radius * 2 && velocityY >= 0)
-			{
-				velocityY = -velocityY;
-				Y_TopOnCanvas = Parameters.MaxHeight - Parameters.Radius * 2 - 3;
-				Strike?.Invoke(this, EventArgs.Empty);
-				currentImpacts[this] = -Parameters.Elasticity;
-			}
-		}
-
-		private void SetNewVelocity()
-		{
-			velocityX += forceX * Parameters.TimeQuant / Parameters.Dimention;
-			velocityY += forceY * Parameters.TimeQuant / Parameters.Dimention;
-		}
-
 		private void SetNewLocation()
 		{
 			newX = this.X_LeftOnCanvas + (velocityX * Parameters.TimeQuant) / Parameters.Dimention;
 			newY = this.Y_TopOnCanvas + (velocityY * Parameters.TimeQuant) / Parameters.Dimention;
 		}
 
-		private void SetLastImpacts() 
+		private void AddWallsReactionAndImpact()
 		{
-			var keysToRemove = new HashSet<Person>();
+			curWallImpact = 0;
 
-			foreach (var key in lastImpacts.Keys) 
+			if (X_LeftOnCanvas < 0 && velocityX <= 0)
 			{
-				if (!currentImpacts.ContainsKey(key)) 
-				{
-					keysToRemove.Add(key);
-				}
+				velocityX = -velocityX;
+				Strike?.Invoke(this, EventArgs.Empty);
+				curWallImpact -= Parameters.Elasticity; 
+			}
+			else if (X_LeftOnCanvas > Parameters.MaxWidth - Parameters.Radius * 2 && velocityX >= 0)
+			{
+				velocityX = -velocityX;
+				Strike?.Invoke(this, EventArgs.Empty);
+				curWallImpact -= Parameters.Elasticity;
 			}
 
-			foreach (var key in keysToRemove) 
+			if (Y_TopOnCanvas < 0 && velocityY <= 0)
 			{
-				lastImpacts.Remove(key);
+				velocityY = -velocityY;
+				Strike?.Invoke(this, EventArgs.Empty);
+				curWallImpact -= Parameters.Elasticity;
 			}
-
-			foreach (var key in currentImpacts.Keys)
+			else if (Y_TopOnCanvas > Parameters.MaxHeight - Parameters.Radius * 2 && velocityY >= 0)
 			{
-				if (lastImpacts.ContainsKey(key))
-				{
-					lastImpacts[key] += currentImpacts[key];
-				}
-				else 
-				{
-					lastImpacts[key] = currentImpacts[key];
-				}
+				velocityY = -velocityY;
+				Strike?.Invoke(this, EventArgs.Empty);
+				curWallImpact -= Parameters.Elasticity;
 			}
-
-			currentImpacts.Clear();
 		}
 
-		public Person ProcessImpacts() 
+		private void ProcessImpacts(ConcurrentBag<Person> deads, ConcurrentBag<Point> newBorns) 
 		{
-			bool needToGiveBirth = false;
+			lastPosImpact = curPosImpact == 0 ? 0 : lastPosImpact + curPosImpact;
+			lastNegImpact = curNegImpact == 0 ? 0 : lastNegImpact + curNegImpact;
+			lastWallImpact = curWallImpact == 0 ? 0 : lastWallImpact + curWallImpact;
 
-			foreach (var key in lastImpacts.Keys) 
+			if (
+				lastWallImpact * persons.Count / 20 < -Parameters.Elasticity * Parameters.BurnDethThres ||
+				lastNegImpact * persons.Count / 20 < -Parameters.Gminus * Parameters.BurnDethThres)
 			{
-				if (lastImpacts[key] > Parameters.Gplus * Parameters.BurnDethThres) 
-				{
-					needToGiveBirth = true;
-					break;
-				}
+				deads.Add(this);
 			}
 
-			if (needToGiveBirth) 
+			if ( lastPosImpact > Parameters.Gplus * Parameters.BurnDethThres * persons.Count / 20)
 			{
-				ClearLastImpacts();
-				var res = new Person(Parameters);
-				res.SetLocation(new Point(this.X_LeftOnCanvas, this.Y_TopOnCanvas));
-				return res;
+				lastPosImpact = 0;
+				newBorns.Add(new Point(this.x_LeftOnCanvas, this.y_TopOnCanvas));
 			}
-
-			if (lastImpacts.ContainsKey(this) && lastImpacts[this] < Parameters.Elasticity * Parameters.BurnDethThres)
-			{
-				this.ClearLastImpacts();
-				return this;
-			}
-
-			bool needToDie = false;
-
-			foreach (var key in lastImpacts.Keys)
-			{
-				if (lastImpacts[key] < Parameters.Gminus * Parameters.BurnDethThres)
-				{
-					needToDie = true;
-					break;
-				}
-			}
-
-			if (needToDie)
-			{
-				this.ClearLastImpacts();
-				return this;
-			}
-
-			return null;
 		}
 
-		private void ClearLastImpacts() 
+		private void Dieing(object sender, ElapsedEventArgs e)
 		{
-			foreach (Person key in lastImpacts.Keys) 
-			{
-				key.LastImpacts.Remove(this);
-			}
+			personsCanvas?.Dispatcher.Invoke(() => personsCanvas.Children.Remove(mainCircleCanvas));
+		}
+		#endregion
 
-			lastImpacts.Clear();
+		private void NotifyPropertyChanged(string v)
+		{
+			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(v));
 		}
 	}
 }

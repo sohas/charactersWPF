@@ -11,21 +11,17 @@ namespace charactersWPF.Model
 		public Player(string fileName)
 		{
 			Uri uri = new Uri(fileName, UriKind.Relative);
-			var rr = Application.GetContentStream(uri);
 			var stream = Application.GetContentStream(uri).Stream;
 			reader = new Mp3FileReader(stream);
 			wout = new WaveOut();
-
 			wout.Init(reader);
-			wout.DeviceNumber = 1;
 			wout.PlaybackStopped += (o, e) => reader.Position = 0;
 		}
 
-		public void Play(double volume = 1)
+		public void Play()
 		{
 			if (wout.PlaybackState == PlaybackState.Stopped)
 			{
-				wout.Volume = (float)volume / 5f;
 				wout.Play();
 			}
 		}

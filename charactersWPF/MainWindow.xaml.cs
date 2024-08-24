@@ -1,12 +1,11 @@
 ﻿using Characters.Model;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Media;
 using Xceed.Wpf.Toolkit;
-using System.Windows.Shapes;
 using Timer = System.Timers.Timer;
 using charactersWPF.Model;
+using System.Collections.Concurrent;
 
 namespace charactersWPF
 {
@@ -22,15 +21,16 @@ namespace charactersWPF
 		private readonly Button startButton = new Button();
 
 		private Person capturedPerson = null;
-		private List<Person> persons = new();
-		private Timer timer = new Timer();
+		private readonly List<Person> persons = new();
+		private readonly object locker = new object();
+		private readonly ConcurrentBag<Person> deads = new ();
+		private readonly ConcurrentBag<Point> newBorns = new ();
+		private readonly Timer timer = new Timer();
 		private bool isStarted = false;
-		private BasicParameters parameters;
-		private Brush lastPersonBrush;
+		private readonly BasicParameters parameters;
 		private System.Windows.WindowState currentState = System.Windows.WindowState.Normal;
 		private Brush backColor;
-
-		private readonly Dictionary<int, Player> players = new Dictionary<int, Player>();
+		private readonly Dictionary<int, Player> soundPlayers = new ();
 
 		public MainWindow()
 		{
@@ -51,30 +51,32 @@ namespace charactersWPF
 
 			MakeDesign();
 
-			players[0] = new Player("Notes/01MC.mp3");
-			players[1] = new Player("Notes/02MCs.mp3");
-			players[2] = new Player("Notes/03MD.mp3");
-			players[3] = new Player("Notes/04MDs.mp3");
-			players[4] = new Player("Notes/05ME.mp3");
-			players[5] = new Player("Notes/06MF.mp3");
-			players[6] = new Player("Notes/07MFs.mp3");
-			players[7] = new Player("Notes/08MG.mp3");
-			players[8] = new Player("Notes/09MGs.mp3");
-			players[9] = new Player("Notes/10MA.mp3");
-			players[10] = new Player("Notes/11MAs.mp3");
-			players[11] = new Player("Notes/12MH.mp3");
-			players[12] = new Player("Notes/13MC.mp3");
-			players[13] = new Player("Notes/14MCs.mp3");
-			players[14] = new Player("Notes/15MD.mp3");
-			players[15] = new Player("Notes/16MDs.mp3");
-			players[16] = new Player("Notes/17ME.mp3");
-			players[17] = new Player("Notes/18MF.mp3");
-			players[18] = new Player("Notes/19MFs.mp3");
-			players[19] = new Player("Notes/20MG.mp3");
-			players[20] = new Player("Notes/21MGs.mp3");
-			players[21] = new Player("Notes/22MA.mp3");
-			players[22] = new Player("Notes/23MAs.mp3");
-			players[23] = new Player("Notes/24MH.mp3");
+			soundPlayers[0] = new Player("Notes/01MC.mp3");
+			soundPlayers[1] = new Player("Notes/02MCs.mp3");
+			soundPlayers[2] = new Player("Notes/03MD.mp3");
+			soundPlayers[3] = new Player("Notes/04MDs.mp3");
+			soundPlayers[4] = new Player("Notes/05ME.mp3");
+			soundPlayers[5] = new Player("Notes/06MF.mp3");
+			soundPlayers[6] = new Player("Notes/07MFs.mp3");
+			soundPlayers[7] = new Player("Notes/08MG.mp3");
+			soundPlayers[8] = new Player("Notes/09MGs.mp3");
+			soundPlayers[9] = new Player("Notes/10MA.mp3");
+			soundPlayers[10] = new Player("Notes/11MAs.mp3");
+			soundPlayers[11] = new Player("Notes/12MH.mp3");
+			soundPlayers[12] = new Player("Notes/13MC.mp3");
+			soundPlayers[13] = new Player("Notes/14MCs.mp3");
+			soundPlayers[14] = new Player("Notes/15MD.mp3");
+			soundPlayers[15] = new Player("Notes/16MDs.mp3");
+			soundPlayers[16] = new Player("Notes/17ME.mp3");
+			soundPlayers[17] = new Player("Notes/18MF.mp3");
+			soundPlayers[18] = new Player("Notes/19MFs.mp3");
+			soundPlayers[19] = new Player("Notes/20MG.mp3");
+			soundPlayers[20] = new Player("Notes/21MGs.mp3");
+			soundPlayers[21] = new Player("Notes/22MA.mp3");
+			soundPlayers[22] = new Player("Notes/23MAs.mp3");
+			soundPlayers[23] = new Player("Notes/24MH.mp3");
+
+			timer = new Timer() { Interval = parameters.TimeQuant };
 		}
 
 		#region design
@@ -221,8 +223,6 @@ namespace charactersWPF
 
 			this.personsCanvas.Background = Brushes.Black;
 			this.personsCanvas.SizeChanged += ResizePersonsPanel;
-			this.personsCanvas.MouseUp += ReleasePerson;
-			this.personsCanvas.MouseMove += MovePerson;
 
 			this.Width = parameters.MaxWidth;
 			this.Height = parameters.MaxHeight;
@@ -307,49 +307,42 @@ namespace charactersWPF
 				return;
 			}
 
-			persons.Clear();
-			personsCanvas.Children.Clear();
-
-			for (int i = 0; i < parameters.PersonsCount; i++)
+			lock (locker)
 			{
-				var person = new Person(parameters);
-				persons.Add(person);
-				person.Strike += (o, e) => players[person.ChromeStep].Play(person.ChromePower);
-				personsCanvas.Children.Add(person.MainCircleCanvas);
-				person.MainCircle.MouseDown += CapturePerson;
-			}
+				persons.Clear();
+				personsCanvas.Children.Clear();
 
-			timer = new Timer();
-			var t = 0;
-			timer.Interval = parameters.TimeQuant;
+				for (int i = 0; i < parameters.PersonsCount; i++)
+				{
+					var person = new Person(parameters, persons, personsCanvas, soundPlayers, locker);
+				}
+			}
 			timer.Elapsed += (o, e) =>
 			{
-				t++;
-				if (t % 307 == 0) 
-				{
-					var u = persons.Count / 2;
-					var person = persons[u];
-					persons.Remove(person);
-					personsCanvas.Dispatcher.Invoke(() =>
-					{
-						personsCanvas.Children.Remove(person.MainCircle);
-						person.MainCircle.ClearValue(Canvas.LeftProperty);
-						person.MainCircle.ClearValue(Canvas.TopProperty);
-					});
+				Person.Iteration(persons, deads, newBorns, locker);
 
-				}
-				Person.Iteration(persons, out HashSet<Person> deads, out HashSet<Person> newBorns);
-				foreach (var person in deads)
+				while (deads.TryTake(out Person person)) 
 				{
-					persons.Remove(person);
-					personsCanvas.Dispatcher.Invoke(() => personsCanvas.Children.Remove(person.MainCircle));
+					lock (locker)
+					{
+						persons.Remove(person);
+					}
+					person.Kill();
 				}
-				foreach (var person in newBorns)
+
+				while (newBorns.TryTake(out Point point))
 				{
-					persons.Add(person);
-					person.Strike += (o, e) => players[person.ChromeStep].Play(person.ChromePower);
-					personsCanvas.Dispatcher.Invoke(() => personsCanvas.Children.Add(person.MainCircle));
-					person.MainCircle.MouseDown += CapturePerson;
+					if (persons.Count > 100) 
+					{
+						newBorns.Clear();
+						return;
+					}
+
+					this.Dispatcher.Invoke(() =>
+					{
+						var np = new Person(parameters, persons, personsCanvas, soundPlayers, locker);
+						np.SetLocation(point);
+					});
 				}
 			};
 
@@ -366,52 +359,6 @@ namespace charactersWPF
 			else
 			{
 				Continue();
-			}
-		}
-		#endregion
-
-		#region move person
-		private void CapturePerson(object o, MouseButtonEventArgs e)
-		{
-			if (o is FrameworkElement fe && fe.DataContext is Person person)
-			{
-				person.IsCaptured = true;
-				person.CaptureDiff = new Point(
-				    e.MouseDevice.GetPosition(personsCanvas).X - person.X_LeftOnCanvas,
-				    e.MouseDevice.GetPosition(personsCanvas).Y - person.Y_TopOnCanvas);
-				capturedPerson = person;
-
-				if (o is Shape shape)
-				{
-					lastPersonBrush = shape.Fill;
-					shape.Fill = Brushes.LightGray;
-				}
-			}
-		}
-
-		private void MovePerson(object _, MouseEventArgs e)
-		{
-			if (capturedPerson is null || e.LeftButton != System.Windows.Input.MouseButtonState.Pressed)
-			{
-				return;
-			}
-
-			var mx = e.MouseDevice.GetPosition(personsCanvas).X;
-			var my = e.MouseDevice.GetPosition(personsCanvas).Y;
-
-			var dx = capturedPerson.CaptureDiff.X;
-			var dy = capturedPerson.CaptureDiff.Y;
-
-			capturedPerson.SetLocation(new Point(mx - dx, my - dy));
-		}
-
-		private void ReleasePerson(object o, MouseButtonEventArgs e)
-		{
-			if (capturedPerson is not null)
-			{
-				capturedPerson.MainCircle.Fill = lastPersonBrush;
-				capturedPerson.IsCaptured = false;
-				capturedPerson = null;
 			}
 		}
 		#endregion

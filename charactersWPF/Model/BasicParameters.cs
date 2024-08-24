@@ -17,8 +17,9 @@ namespace Characters.Model
 		public double Viscosity { get; set; }
 		public int TimeQuant { get; set; }
 		public double Dimention => 100.0;
+		public int DeathInterval => 1000;
 
-		public int BurnDethThres { get; set; } = 1000;
+		public int BurnDethThres { get; set; } = 10;
 
 		public BasicParameters(
 		    Size size, int radius, int maxNumberCharacterTypes, int maxNumberCharacters, int personsCount,

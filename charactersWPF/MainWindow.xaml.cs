@@ -36,13 +36,13 @@ namespace charactersWPF
 		{
 			var size = new Size(600, 600);
 			var radius = 20;
-			var maxNumberCharacterTypes = 12;
-			var maxNumberCharacters = 7;
-			var personsCount = 10;
-			var gPlus = 10;
-			var gMinus = 12;
-			var elasticity = 100;
-			var viscosity = 100;
+			var maxNumberCharacterTypes = 24;
+			var maxNumberCharacters = 24;
+			var personsCount = 20;
+			var gPlus = 1;
+			var gMinus = 1;
+			var elasticity = 1;
+			var viscosity = 1000;
 			var timeQuant = 20;
 
 			parameters = new BasicParameters(

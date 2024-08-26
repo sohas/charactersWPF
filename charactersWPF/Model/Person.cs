@@ -41,6 +41,8 @@ namespace Characters.Model
 
 		private readonly List<double> characters = new();
 		private readonly List<Color> charactersColors = new();
+		private readonly Point chromeVector;
+		private readonly int chromeStep;
 		private readonly List<Person> persons;
 		private readonly Canvas personsCanvas;
 		private readonly Dictionary<int, Player> soundPlayers;
@@ -81,7 +83,7 @@ namespace Characters.Model
 			}
 		}
 
-		public int ChromeStep { get; private set; }
+		public int ChromeStep => chromeStep;
 		#endregion
 
 		public event EventHandler Strike;
@@ -102,9 +104,14 @@ namespace Characters.Model
 
 			var rnd = new Random();
 			SetStartKinematic(rnd);
-			SetCharecters(rnd);
+
+			characters = MakeCharecters(rnd);
 			charactersColors = characters.Select(x => GetColor(x)).ToList();
-			meanColor = GetMeanColor(charactersColors);
+			chromeVector = GetChromeVector(characters);
+			var chromeAngle = GetChromeAngle(chromeVector);
+			chromeStep = GetChromeStep(chromeAngle);
+			meanColor = GetMeanColor(chromeAngle, GetChromeR(chromeVector));
+
 			basicRotateAngle = rnd.NextDouble() * 5;
 			BuildMainCanvasAndAllCircles();
 			this.personsCanvas = personsCanvas;
@@ -203,25 +210,40 @@ namespace Characters.Model
 			this.Y_TopOnCanvas = rnd.NextDouble() * (Parameters.MaxHeight - Parameters.Radius * 2);
 		}
 
-		private void SetCharecters(Random rnd)
+		private static Point GetChromeVector(List<double> characters) 
 		{
-			var charactersNumber = rnd.Next(1, Parameters.MaxNumberCharacters + 1);
-
 			double xAccum = 0;
 			double yAccum = 0;
 
-			for (var i = 0; i < charactersNumber; i++)
+			if (characters.Count == 0) 
 			{
-				var characterIndex = rnd.Next(0, Parameters.MaxNumberCharacterTypes);
-				var character = characterIndex / (double)Parameters.MaxNumberCharacterTypes;//от 0 до 1 исключая 1
-				characters.Add(character);
+				return new Point(0, 0);
+			}
 
+			foreach (var character in characters) 
+			{
 				var angle = Math.PI * 2 * character;
 				xAccum += Math.Cos(angle);
 				yAccum += Math.Sin(angle);
 			}
 
-			var r = Math.Sqrt(xAccum * xAccum + yAccum * yAccum);
+			return new Point(xAccum/characters.Count, yAccum/characters.Count);
+		}
+
+		private static double GetChromeR(Point chromeVector) 
+		{
+			var xAccum = chromeVector.X;
+			var yAccum = chromeVector.Y;
+
+			return Math.Sqrt(xAccum * xAccum + yAccum * yAccum);
+		}
+
+		private static double GetChromeAngle(Point chromeVector) 
+		{
+			var xAccum = chromeVector.X;
+			var yAccum = chromeVector.Y;
+
+			var r = GetChromeR(chromeVector);
 			var ang =
 				r == 0 ?
 				0 :
@@ -229,11 +251,32 @@ namespace Characters.Model
 				Math.Acos(xAccum / r) :
 				Math.PI * 2 - Math.Acos(xAccum / r);
 
-			ChromeStep = (int)(ang / (Math.PI * 2) * Parameters.MaxNumberCharacterTypes);
-			ChromeStep = ChromeStep % 2 == 0 ? ChromeStep / 2 * 7 : (ChromeStep - 1) / 2 * 7 + 4;
-			ChromeStep %= 24;
+			return ang / (Math.PI * 2);
+		}
 
-			characters.Sort();
+		private static int GetChromeStep(double chromeAngle) 
+		{
+			var res = (int)(chromeAngle * Parameters.MaxNumberCharacterTypes);
+			res = res % 2 == 0 ? res / 2 * 7 : (res - 1) / 2 * 7 + 4;
+			res %= 24;
+
+			return res;
+		}
+
+		private static List<double> MakeCharecters(Random rnd)
+		{
+			var charactersNumber = rnd.Next(1, Parameters.MaxNumberCharacters + 1);
+			var res = new List<double>();
+
+			for (var i = 0; i < charactersNumber; i++)
+			{
+				var characterIndex = rnd.Next(0, Parameters.MaxNumberCharacterTypes);
+				var character = characterIndex / (double)Parameters.MaxNumberCharacterTypes;//от 0 до 1 исключая 1
+				res.Add(character);
+			}
+			res.Sort();
+
+			return res;
 		}
 
 		private static Color GetColor(double index0)
@@ -276,39 +319,12 @@ namespace Characters.Model
 			return Color.FromRgb((byte)R, (byte)G, (byte)B);
 		}
 
-		private static Color GetMeanColor(List<Color> colors)
+		private static Color GetMeanColor(double chromeAngle, double chromeR) 
 		{
-			if (colors is null || !colors.Any())
-			{
-				return Colors.White;
-			}
-
-			var n = colors.Count;
-
-			double a = 0;
-			double r = 0;
-			double g = 0;
-			double b = 0;
-
-			foreach (var color in colors)
-			{
-				a += color.A;
-				r += color.R;
-				g += color.G;
-				b += color.B;
-			}
-
-			a /= n;
-			r /= n;
-			g /= n;
-			b /= n;
-
-			a = a > 255 ? 255 : a;
-			r = r > 255 ? 255 : r;
-			g = g > 255 ? 255 : g;
-			b = b > 255 ? 255 : b;
-
-			return Color.FromArgb((byte)(2 * a / 3), (byte)r, (byte)g, (byte)b);
+			var res = GetColor(chromeAngle);
+			var baseK = 1 / 2.0;
+			res.A = (byte)(res.A * chromeR * (1 - (1 - baseK)/Parameters.MaxNumberCharacters));
+			return res;
 		}
 
 		private void BuildMainCanvasAndAllCircles()

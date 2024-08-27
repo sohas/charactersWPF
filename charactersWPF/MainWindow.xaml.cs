@@ -39,10 +39,10 @@ namespace charactersWPF
 			var maxNumberCharacterTypes = 24;
 			var maxNumberCharacters = 24;
 			var personsCount = 20;
-			var gPlus = 1;
-			var gMinus = 1;
-			var elasticity = 1;
-			var viscosity = 1000;
+			var gPlus = 5;
+			var gMinus = 5;
+			var elasticity = 5;
+			var viscosity = 5;
 			var timeQuant = 20;
 
 			parameters = new BasicParameters(

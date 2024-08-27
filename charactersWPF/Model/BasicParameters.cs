@@ -19,7 +19,9 @@ namespace Characters.Model
 		public double Dimention => 100.0;
 		public int DeathInterval => 1000;
 
-		public int BurnDethThres { get; set; } = 10;
+		public double ForceCorrection => 0.5 + (MaxNumberCharacters - 1) * 0.18;//получено эмпирически, как средний модуль базовой силы в завис от N
+
+		public int BurnDethThres { get; set; } = 3;
 
 		public BasicParameters(
 		    Size size, int radius, int maxNumberCharacterTypes, int maxNumberCharacters, int personsCount,

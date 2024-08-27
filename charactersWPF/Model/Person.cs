@@ -1,4 +1,5 @@
 ﻿using charactersWPF.Model;
+using System;
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Timers;
@@ -121,7 +122,7 @@ namespace Characters.Model
 			Strike += (o, e) => soundPlayers[ChromeStep].Play();
 
 			killTimer.Interval = Parameters.DeathInterval;
-			killTimer.Elapsed += Dieing;
+			killTimer.Elapsed += Dying;
 		}
 
 		#region pubic methods
@@ -146,13 +147,14 @@ namespace Characters.Model
 							continue;
 						}
 
-
 						first.SetForceAndImpactFromSecondPerson(second);
 					}
 
+					first.AddWallsReactionAndImpact();
 					first.SetNewVelocity();
 					first.AddViscosity();
 					first.SetNewLocation();
+					first.ProcessImpacts(deads, newBorns);
 				}
 			}
 
@@ -162,8 +164,6 @@ namespace Characters.Model
 				{
 					person.X_LeftOnCanvas = person.newX;
 					person.Y_TopOnCanvas = person.newY;
-					person.AddWallsReactionAndImpact();
-					person.ProcessImpacts(deads, newBorns);
 				}
 			}
 		}
@@ -413,6 +413,8 @@ namespace Characters.Model
 				}
 			}
 
+			force /= Parameters.ForceCorrection;
+
 			if (distance < 2 * Parameters.Radius)
 			{
 				Strike?.Invoke(this, EventArgs.Empty);
@@ -451,7 +453,7 @@ namespace Characters.Model
 		private void AddViscosity()
 		{
 			var vsqr = (velocityX * velocityX + velocityY * velocityY);
-			var visc = Parameters.Viscosity / (Parameters.Dimention * Parameters.Dimention * Parameters.Dimention * Parameters.Dimention);
+			var visc = Parameters.Viscosity / (Parameters.Dimention * Parameters.Dimention * Parameters.Dimention);
 
 			velocityX /= (1 + vsqr * visc);
 			velocityY /= (1 + vsqr * visc);
@@ -501,20 +503,26 @@ namespace Characters.Model
 			lastWallImpact = curWallImpact == 0 ? 0 : lastWallImpact + curWallImpact;
 
 			if (
-				lastWallImpact * persons.Count / 20 < -Parameters.Elasticity * Parameters.BurnDethThres ||
-				lastNegImpact * persons.Count / 20 < -Parameters.Gminus * Parameters.BurnDethThres)
+				lastWallImpact < -Parameters.Elasticity * Parameters.BurnDethThres ||
+				lastNegImpact < -Parameters.Gminus * Parameters.BurnDethThres)
 			{
+				//сюда добавить вероятность в завис от числа персон
+
 				deads.Add(this);
 			}
 
-			if ( lastPosImpact > Parameters.Gplus * Parameters.BurnDethThres * persons.Count / 20)
+			if ( lastPosImpact > Parameters.Gplus * Parameters.BurnDethThres && this.state != PersonState.Dead)
 			{
 				lastPosImpact = 0;
+				curPosImpact = 0;
+
+				//сюда добавить вероятность в завис от числа персон
+
 				newBorns.Add(new Point(this.x_LeftOnCanvas, this.y_TopOnCanvas));
 			}
 		}
 
-		private void Dieing(object sender, ElapsedEventArgs e)
+		private void Dying(object sender, ElapsedEventArgs e)
 		{
 			personsCanvas?.Dispatcher.Invoke(() => personsCanvas.Children.Remove(mainCircleCanvas));
 		}

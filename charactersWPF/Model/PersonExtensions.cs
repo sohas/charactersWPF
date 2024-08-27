@@ -15,7 +15,7 @@ namespace charactersWPF.Model
 			var repulsiveComponent = -diff * diff * parameters.Gminus;
 			var attractiveComponent = (1 - diff) * (1 - diff) * parameters.Gplus;///
 
-			return attractiveComponent + repulsiveComponent;
+			return (attractiveComponent + repulsiveComponent) / Math.Sqrt(parameters.Dimention);
 		}
 	}
 

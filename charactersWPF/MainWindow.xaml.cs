@@ -39,15 +39,15 @@ namespace charactersWPF
 			var maxNumberCharacterTypes = 24;
 			var maxNumberCharacters = 24;
 			var personsCount = 20;
-			var gPlus = 5;
-			var gMinus = 5;
+			var g = 5;
+			var gDelta = 0.0;
 			var elasticity = 5;
 			var viscosity = 5;
 			var timeQuant = 20;
 
 			parameters = new BasicParameters(
 			    size, radius, maxNumberCharacterTypes, maxNumberCharacters, personsCount,
-			    gPlus, gMinus, elasticity, viscosity, timeQuant);
+			    g, gDelta, elasticity, viscosity, timeQuant);
 
 			MakeDesign();
 
@@ -194,15 +194,15 @@ namespace charactersWPF
 			var personsNumberInput = MakeAndAddInput(parameters.PersonsCount, basicH, uiMargin);
 			personsNumberInput.ValueChanged += (o, e) => parameters.PersonsCount = (int)personsNumberInput.Value;
 
-			var gPlusLabel = MakeAndAddLabel("G+", basicH, new());
+			var gLabel = MakeAndAddLabel("G", basicH, new());
 
-			var gPlusInput = MakeAndAddInput((int)parameters.Gplus, basicH, uiMargin);
-			gPlusInput.ValueChanged += (o, e) => parameters.Gplus = (double)gPlusInput.Value;
+			var gInput = MakeAndAddInput((int)parameters.G, basicH, uiMargin);
+			gInput.ValueChanged += (o, e) => parameters.G = (double)gInput.Value;
 
-			var gMinusLabel = MakeAndAddLabel("G-", basicH, new());
+			var gDeltaLabel = MakeAndAddLabel("dG", basicH, new());
 
-			var gMinusInput = MakeAndAddInput((int)parameters.Gminus, basicH, uiMargin);
-			gMinusInput.ValueChanged += (o, e) => parameters.Gminus = (double)gMinusInput.Value;
+			var gDeltaInput = MakeAndAddInputD(parameters.Gdelta, basicH, uiMargin, "Gdelta");
+			//gDeltaInput.ValueChanged += (o, e) => parameters.Gdelta = (double)gDeltaInput.Value;
 
 			var elasticityLabel = MakeAndAddLabel("E", basicH, new());
 
@@ -267,6 +267,28 @@ namespace charactersWPF
 			return input;
 		}
 
+		private DoubleUpDown MakeAndAddInputD(double startValue, double height, Thickness uiMargin, string ValueName)
+		{
+			var input = new DoubleUpDown()
+			{
+				Background = Brushes.White,
+				Foreground = backColor,
+				Margin = uiMargin,
+				BorderThickness = new Thickness(0),
+				Height = height,
+				Width = 50,
+				//Value = startValue,
+				DataContext = parameters,
+				AllowSpin = true,
+				Increment = 1,
+			};
+			input.SetBinding(DoubleUpDown.ValueProperty, ValueName);
+			DockPanel.SetDock(input, Dock.Left);
+			this.controlDockPanel.Children.Add(input);
+
+			return input;
+		}
+
 		private void ResizePersonsPanel(object _, SizeChangedEventArgs e)
 		{
 			if (this.personsCanvas.ActualWidth > 0)
@@ -320,30 +342,42 @@ namespace charactersWPF
 			timer.Elapsed += (o, e) =>
 			{
 				Person.Iteration(persons, deads, newBorns, locker);
+				var rnd = new Random();
 
 				while (deads.TryTake(out Person person)) 
 				{
-					lock (locker)
+					var p = 1.0/(persons.Count + deads.Count);
+					if (rnd.NextDouble() > p) 
 					{
-						persons.Remove(person);
+						lock (locker)
+						{
+							persons.Remove(person);
+						}
+						person.Kill();
 					}
-					person.Kill();
 				}
 
 				while (newBorns.TryTake(out Point point))
 				{
-					if (persons.Count > 100) 
+					if (persons.Count > 100)
 					{
 						newBorns.Clear();
 						return;
 					}
 
-					this.Dispatcher.Invoke(() =>
+					var p = 1.0 / (persons.Count + deads.Count);
+					if (rnd.NextDouble() < p)
 					{
-						var np = new Person(parameters, persons, personsCanvas, soundPlayers, locker);
-						np.SetLocation(point);
-					});
+						this.Dispatcher.Invoke(() =>
+						{
+							var np = new Person(parameters, persons, personsCanvas, soundPlayers, locker);
+							np.SetLocation(point);
+						});
+					}
 				}
+
+				var newCountDiff = (parameters.PersonsCount - persons.Count)/(double)parameters.PersonsCount;
+				parameters.Gdelta = (newCountDiff * parameters.G);
 			};
 
 			timer.Start();

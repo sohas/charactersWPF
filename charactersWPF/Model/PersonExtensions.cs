@@ -12,8 +12,8 @@ namespace charactersWPF.Model
 		{
 			var diff = Math.Abs(character2 - character1);
 			diff = 1 - 2 * Math.Abs(diff - 0.5); //0 -- одинаковые характеры, 1 -- максимально разные
-			var repulsiveComponent = -diff * diff * parameters.Gminus;
-			var attractiveComponent = (1 - diff) * (1 - diff) * parameters.Gplus;///
+			var repulsiveComponent = -diff * diff * (parameters.G - parameters.Gdelta);
+			var attractiveComponent = (1 - diff) * (1 - diff) * (parameters.G + parameters.Gdelta);///
 
 			return (attractiveComponent + repulsiveComponent) / Math.Sqrt(parameters.Dimention);
 		}

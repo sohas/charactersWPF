@@ -432,7 +432,7 @@ namespace Characters.Model
 			}
 			else
 			{
-				force /= 1 + distanceSQ / (Parameters.Dimention * Parameters.Dimention);
+				force /= 0.1 + distanceSQ / (Parameters.Dimention * Parameters.Dimention);
 			}
 
 			if (distance == 0)
@@ -504,20 +504,15 @@ namespace Characters.Model
 
 			if (
 				lastWallImpact < -Parameters.Elasticity * Parameters.BurnDethThres ||
-				lastNegImpact < -Parameters.Gminus * Parameters.BurnDethThres)
+				lastNegImpact < -(Parameters.G - Parameters.Gdelta) * Parameters.BurnDethThres)
 			{
-				//сюда добавить вероятность в завис от числа персон
-
 				deads.Add(this);
 			}
 
-			if ( lastPosImpact > Parameters.Gplus * Parameters.BurnDethThres && this.state != PersonState.Dead)
+			if ( lastPosImpact > (Parameters.G + Parameters.Gdelta) * Parameters.BurnDethThres && this.state != PersonState.Dead)
 			{
 				lastPosImpact = 0;
 				curPosImpact = 0;
-
-				//сюда добавить вероятность в завис от числа персон
-
 				newBorns.Add(new Point(this.x_LeftOnCanvas, this.y_TopOnCanvas));
 			}
 		}

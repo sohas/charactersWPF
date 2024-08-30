@@ -1,5 +1,4 @@
 ﻿using charactersWPF.Model;
-using System;
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Timers;
@@ -32,6 +31,8 @@ namespace Characters.Model
 		private double lastPosImpact;
 		private double lastNegImpact;
 		private double lastWallImpact;
+		private int wallStrikes;
+		private int personsStrikes;
 
 		private readonly DateTime birthTime;
 		private PersonState state;
@@ -44,10 +45,8 @@ namespace Characters.Model
 		private readonly List<Color> charactersColors;
 		private readonly Point chromeVector;
 		private readonly int chromeStep;
-		private readonly List<Person> persons;
-		private readonly Canvas personsCanvas;
 
-		private Timer killTimer = new Timer();
+		private Timer dyingTimer = new Timer();
 		#endregion
 
 		#region public properties
@@ -84,22 +83,18 @@ namespace Characters.Model
 		}
 
 		public int ChromeStep => chromeStep;
+		public Canvas MainCircleCanvas => mainCircleCanvas;
 		#endregion
 
 		public event EventHandler Strike;
+		public event EventHandler Kill;
 		public event PropertyChangedEventHandler? PropertyChanged;
 
-		public Person(BasicParameters parameters, List<Person> persons, Canvas personsCanvas, object locker)
+		public Person(BasicParameters parameters)
 		{
 			Parameters ??= parameters;
 			this.birthTime = DateTime.Now;
 			this.state = PersonState.NewBorn;
-
-			this.persons = persons;
-			lock (locker)
-			{
-				persons.Add(this);
-			}
 
 			var rnd = new Random();
 			SetStartKinematic(rnd);
@@ -108,23 +103,26 @@ namespace Characters.Model
 			this.charactersColors = characters.Select(x => GetColor(x)).ToList();
 			this.chromeVector = GetChromeVector(characters);
 			var chromeAngle = GetChromeAngle(chromeVector);
+			var chromeRadius = GetChromeRadius(chromeVector);
 			this.chromeStep = GetChromeStep(chromeAngle);
-			this.meanColor = GetMeanColor(chromeAngle, GetChromeRadius(chromeVector));
+			this.meanColor = GetMeanColor(chromeAngle, chromeRadius);
+			this.basicRotateAngle = rnd.NextDouble() * 5;
 
-			basicRotateAngle = rnd.NextDouble() * 5;
 			BuildMainCanvasAndAllCircles();
-			this.personsCanvas = personsCanvas;
-			this.personsCanvas.Children.Add(mainCircleCanvas);
 
-			killTimer.Interval = Parameters.DeathInterval;
-			killTimer.Elapsed += Dying;
+			dyingTimer.Interval = Parameters.DeathInterval;
+			dyingTimer.Elapsed += KillPerson;
 
 			OnStrike();
 		}
 
 		#region pubic methods
-		public static void Iteration(List<Person> persons, ConcurrentBag<Person> deads, ConcurrentBag<Point> newBorns, object locker)
+		public static void Iteration(
+			List<Person> persons, ConcurrentBag<Person> deads, ConcurrentBag<Point> newBorns, 
+			object locker, Canvas personsCanvas, Statistics statistics)
 		{
+			statistics.StartGettingStatistics();
+
 			lock (locker)
 			{
 				foreach (var first in persons)
@@ -161,8 +159,15 @@ namespace Characters.Model
 				{
 					person.X_LeftOnCanvas = person.newX;
 					person.Y_TopOnCanvas = person.newY;
+					statistics.Temperature += (person.velocityX * person.velocityX + person.velocityY * person.velocityY);
+					statistics.Pressure += person.wallStrikes;
 				}
+
+				statistics.N = persons.Count;
 			}
+
+			statistics.Perimeter = 2 * (personsCanvas.ActualWidth + personsCanvas.ActualHeight) / (Parameters.Dimention * Parameters.Dimention);
+			statistics.CheckStatistics();
 		}
 
 		public void SetLocation(Point location)
@@ -171,15 +176,13 @@ namespace Characters.Model
 			Y_TopOnCanvas = newY = location.Y;
 		}
 
-		public void Kill()
+		public void StartDying(Color dyingColor)//запуск анимации и таймера умирания
 		{
 			state = PersonState.Dead;
 
 			mainCircle.Dispatcher.Invoke(() =>
 			{
-				var finalColor = Colors.White;
-
-				ColorAnimation ca = new ColorAnimation(finalColor,
+				ColorAnimation ca = new ColorAnimation(dyingColor,
 					new Duration(TimeSpan.FromMilliseconds(Parameters.DeathInterval)));
 
 				foreach (Ellipse circle in mainCircleCanvas.Children)
@@ -195,7 +198,7 @@ namespace Characters.Model
 				mainCircleCanvas.RenderTransform = null;
 			});
 
-			killTimer.Start();
+			dyingTimer.Start();
 		}
 		#endregion
 
@@ -397,6 +400,7 @@ namespace Characters.Model
 			double force = 0;
 			curNegImpact = 0;
 			curPosImpact = 0;
+			var currentPersonsStrike = 0;
 
 			var distanceX = second.X_LeftOnCanvas - this.X_LeftOnCanvas;
 			var distanceY = second.Y_TopOnCanvas - this.Y_TopOnCanvas;
@@ -425,6 +429,7 @@ namespace Characters.Model
 				}
 
 				force = -Parameters.Elasticity;
+				currentPersonsStrike++;
 			}
 			else
 			{
@@ -438,6 +443,7 @@ namespace Characters.Model
 
 			forceX += (distanceX / distance) * force;
 			forceY += (distanceY / distance) * force;
+			personsStrikes = currentPersonsStrike;
 		}
 
 		private void SetNewVelocity()
@@ -464,12 +470,14 @@ namespace Characters.Model
 		private void AddWallsReactionAndImpact()
 		{
 			curWallImpact = 0;
+			wallStrikes = 0;
 
 			if (X_LeftOnCanvas < 0 && velocityX <= 0)
 			{
 				velocityX = -velocityX;
 				X_LeftOnCanvas = 0;
 				curWallImpact -= Parameters.Elasticity;
+				wallStrikes++;
 				OnStrike();
 			}
 			else if (X_LeftOnCanvas > Parameters.MaxWidth - Parameters.Radius * 2 && velocityX >= 0)
@@ -477,6 +485,7 @@ namespace Characters.Model
 				velocityX = -velocityX;
 				X_LeftOnCanvas = Parameters.MaxWidth - Parameters.Radius * 2;
 				curWallImpact -= Parameters.Elasticity;
+				wallStrikes++;
 				OnStrike();
 			}
 
@@ -485,6 +494,7 @@ namespace Characters.Model
 				velocityY = -velocityY;
 				Y_TopOnCanvas = 0;
 				curWallImpact -= Parameters.Elasticity;
+				wallStrikes++;
 				OnStrike();
 			}
 			else if (Y_TopOnCanvas > Parameters.MaxHeight - Parameters.Radius * 2 && velocityY >= 0)
@@ -492,10 +502,13 @@ namespace Characters.Model
 				velocityY = -velocityY;
 				Y_TopOnCanvas = Parameters.MaxHeight - Parameters.Radius * 2;
 				curWallImpact -= Parameters.Elasticity;
+				wallStrikes++;
 				OnStrike();
 			}
 		}
+		#endregion
 
+		#region impact
 		private void ProcessImpacts(ConcurrentBag<Person> deads, ConcurrentBag<Point> newBorns)
 		{
 			lastPosImpact = curPosImpact == 0 ? 0 : lastPosImpact + curPosImpact;
@@ -517,23 +530,30 @@ namespace Characters.Model
 			}
 		}
 
-		private void Dying(object sender, ElapsedEventArgs e)
+		private void KillPerson(object sender, ElapsedEventArgs e)
 		{
-			personsCanvas?.Dispatcher.Invoke(() => personsCanvas.Children.Remove(mainCircleCanvas));
-			killTimer.Stop();
-			killTimer.Dispose();
+			dyingTimer.Stop();
+			dyingTimer.Dispose();
 			OnStrike();
+			OnKill();
 		}
 		#endregion
 
+		#region on events
 		private void NotifyPropertyChanged(string v)
 		{
 			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(v));
 		}
 
-		private void OnStrike() 
+		private void OnStrike()
 		{
 			Strike?.Invoke(this, EventArgs.Empty);
 		}
+
+		private void OnKill()
+		{
+			Kill?.Invoke(this, EventArgs.Empty);
+		}
+		#endregion
 	}
 }

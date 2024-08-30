@@ -1,8 +1,7 @@
 ﻿using Characters.Model;
-
-using System;
 using System.IO;
 using System.Resources;
+using System.Windows.Controls;
 
 namespace charactersWPF.Model
 {
@@ -33,6 +32,14 @@ namespace charactersWPF.Model
 			{
 				throw new System.InvalidCastException("The specified resource is not a binary resource.");
 			}
+		}
+	}
+
+	public static class UIElementExtensions
+	{
+		public static void UpdateIndicator(this Label indicator, double e)
+		{
+			indicator?.Dispatcher?.Invoke(() => indicator.Content = $"{indicator.Tag}={e:F0}");
 		}
 	}
 }

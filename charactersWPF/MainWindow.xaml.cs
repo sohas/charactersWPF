@@ -6,24 +6,26 @@ using Xceed.Wpf.Toolkit;
 using Timer = System.Timers.Timer;
 using charactersWPF.Model;
 using System.Collections.Concurrent;
-using System.ComponentModel;
-using System.Windows.Data;
-using System;
+using System.Timers;
 
 namespace charactersWPF
 {
-	public partial class MainWindow : Window, INotifyPropertyChanged
+	public partial class MainWindow : Window
 	{
+		#region fields
 		private readonly Grid mainGrid = new();
 		private readonly DockPanel controlDockPanel = new();
-		private readonly Canvas indicatorsCanvas = new();
-		private readonly Label indicatorMass = new Label();
+		private readonly StackPanel indicatorsCanvas = new();
 		private readonly Canvas personsCanvas = new();
+		private readonly SolidColorBrush personsCanvasBackBrush = Brushes.Black;
 		private readonly Button closeButton = new Button();
 		private readonly Button fullButton = new Button();
 		private readonly Button minimizeButton = new Button();
 		private readonly Button newButton = new Button();
 		private readonly Button startButton = new Button();
+		private Label indicatorN;
+		private Label indicatorTemperature;
+		private Label indicatorPressure;
 		private Thickness uiMargin;
 		private double basicH;
 
@@ -31,7 +33,7 @@ namespace charactersWPF
 		private readonly object locker = new object();
 		private readonly ConcurrentBag<Person> deads = new();
 		private readonly ConcurrentBag<Point> newBorns = new();
-		private readonly Timer timer = new Timer();
+		private Timer iterationTimer = new Timer();
 		private bool isStarted = false;
 		private readonly BasicParameters parameters;
 		private System.Windows.WindowState currentState = System.Windows.WindowState.Normal;
@@ -39,30 +41,8 @@ namespace charactersWPF
 		private readonly Dictionary<int, Player> soundPlayers = new();
 		private bool canAutoChangeGdelta = true;
 		private int lastPersonsCount = 0;
-
-		public event PropertyChangedEventHandler? PropertyChanged;
-
-		private string personsCount;
-		public string PersonsCount
-		{
-			get
-			{
-				return personsCount;
-			}
-			set
-			{
-				if (personsCount != value)
-				{
-					personsCount = value;
-					NotifyPropertyChanged("PersonsCount");
-				}
-			}
-		}
-
-		private void NotifyPropertyChanged(string v)
-		{
-			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(v));
-		}
+		private Statistics statistics;
+		#endregion
 
 		public MainWindow()
 		{
@@ -73,15 +53,27 @@ namespace charactersWPF
 			var personsCount = 20;
 			var g = 5;
 			var gDelta = 0.0;
-			var elasticity = 5;
-			var viscosity = 5;
+			var elasticity = 3;
+			var viscosity = 6;
 
 			parameters = new BasicParameters(
 			    size, radius, maxNumberCharacterTypes, maxNumberCharacters, personsCount,
 			    g, gDelta, elasticity, viscosity);
 
+			SetupIterationTimer();
 			MakeDesign();
+			SetupSoundPlayers();
+			SetupStatistics();
+		}
 
+		private void SetupIterationTimer()
+		{
+			iterationTimer = new Timer() { Interval = parameters.TimeQuant };
+			iterationTimer.Elapsed += OnIteration;
+		}
+
+		private void SetupSoundPlayers()
+		{
 			soundPlayers[0] = new Player("Notes/01MC.mp3");
 			soundPlayers[1] = new Player("Notes/02MCs.mp3");
 			soundPlayers[2] = new Player("Notes/03MD.mp3");
@@ -106,8 +98,14 @@ namespace charactersWPF
 			soundPlayers[21] = new Player("Notes/22MA.mp3");
 			soundPlayers[22] = new Player("Notes/23MAs.mp3");
 			soundPlayers[23] = new Player("Notes/24MH.mp3");
+		}
 
-			timer = new Timer() { Interval = parameters.TimeQuant };
+		private void SetupStatistics()
+		{
+			statistics = new Statistics(500);
+			statistics.NChanged += (o, e) => indicatorN?.UpdateIndicator(e);
+			statistics.TemperatureChanged += (o, e) => indicatorTemperature?.UpdateIndicator(e);
+			statistics.PressureChanged += (o, e) => indicatorPressure?.UpdateIndicator(e);
 		}
 
 		#region design
@@ -262,30 +260,22 @@ namespace charactersWPF
 			Grid.SetColumn(personsCanvas, 0);
 			Grid.SetRow(personsCanvas, 1);
 
-			this.personsCanvas.Background = Brushes.Black;
+			this.personsCanvas.Background = personsCanvasBackBrush;
 			this.personsCanvas.SizeChanged += ResizePersonsPanel;
 
 			Canvas.SetLeft(indicatorsCanvas, 0);
 			Canvas.SetTop(indicatorsCanvas, 0);
 			Canvas.SetZIndex(indicatorsCanvas, 1);
+			this.indicatorsCanvas.Orientation = Orientation.Vertical;
 			this.indicatorsCanvas.Background = Brushes.Transparent;
-			this.indicatorsCanvas.Width = 200;
-			this.indicatorsCanvas.Height = 50;
 
-			this.indicatorMass.Height = basicH;
-			this.indicatorMass.Background = Brushes.Transparent;
-			this.indicatorMass.Foreground = Brushes.Gray;
-			this.indicatorMass.FontSize = 20;
-			Canvas.SetLeft(indicatorMass, 0);
-			Canvas.SetTop(indicatorMass, 0);
-			this.indicatorMass.DataContext = this;
-			var cbd = new Binding("PersonsCount");
-			cbd.StringFormat = "M={0}";
-			this.indicatorMass.SetBinding(Label.ContentProperty, cbd);
-			this.indicatorsCanvas.Children.Add(indicatorMass);
+			this.indicatorN = MakeIndicator("N");
+			this.indicatorTemperature = MakeIndicator("T");
+			this.indicatorPressure = MakeIndicator("P");
 
 			this.Width = parameters.MaxWidth;
 			this.Height = parameters.MaxHeight;
+			this.Closed += (o, e) => Stop();
 		}
 
 		private Label MakeAndAddLabel(string text, Thickness uiMargin)
@@ -333,6 +323,22 @@ namespace charactersWPF
 			return input;
 		}
 
+		private Label MakeIndicator(string prefix)
+		{
+			var indicator = new Label()
+			{
+				Height = basicH,
+				Background = Brushes.Transparent,
+				Foreground = Brushes.Gray,
+				FontSize = 20,
+				Tag = prefix,
+				Content = $"{prefix} = 0",
+			};
+
+			indicatorsCanvas.Children.Add(indicator);
+			return indicator;
+		}
+
 		private void ResizePersonsPanel(object _, SizeChangedEventArgs e)
 		{
 			if (this.personsCanvas.ActualWidth > 0)
@@ -350,18 +356,18 @@ namespace charactersWPF
 		#region start/stop
 		private void Stop()
 		{
-			if (isStarted && timer is not null)
+			if (isStarted && iterationTimer is not null)
 			{
-				timer.Stop();
+				iterationTimer.Stop();
 				isStarted = false;
 			}
 		}
 
 		private void Continue()
 		{
-			if (!isStarted && timer is not null)
+			if (!isStarted && iterationTimer is not null)
 			{
-				timer.Start();
+				iterationTimer.Start();
 				isStarted = true;
 			}
 		}
@@ -370,7 +376,7 @@ namespace charactersWPF
 		{
 			if (isStarted)
 			{
-				return;
+				Stop();
 			}
 
 			lock (locker)
@@ -381,70 +387,79 @@ namespace charactersWPF
 
 				for (int i = 0; i < parameters.PersonsCount; i++)
 				{
-					var person = new Person(parameters, persons, personsCanvas, locker);
-					person.Strike += (o, e) => soundPlayers[person.ChromeStep].Play();
+					MakeNewPerson();
 				}
-
-				PersonsCount = $"M={persons.Count}";
 			}
-			timer.Elapsed += (o, e) =>
-			{
-				Person.Iteration(persons, deads, newBorns, locker);
-				var rnd = new Random();
 
-				//смерть
-				while (deads.TryTake(out Person person))
-				{
-					double count = persons.Count + deads.Count;
-					double p = count / (parameters.PersonsCount + count);
-
-					if (rnd.NextDouble() > p - 0.2)
-					{
-						lock (locker)
-						{
-							persons.Remove(person);
-						}
-						person.Kill();
-						PersonsCount = $"M={persons.Count}";
-					}
-				}
-
-				//зарождение новых
-				while (newBorns.TryTake(out Point point))
-				{
-					if (persons.Count > 100)
-					{
-						newBorns.Clear();
-						return;
-					}
-
-					double count = persons.Count + newBorns.Count;
-					double p = count / (parameters.PersonsCount + count);
-
-					if (rnd.NextDouble() < p)
-					{
-						this.Dispatcher.Invoke(() =>
-						{
-							var newPerson = new Person(parameters, persons, personsCanvas, locker);
-							newPerson.SetLocation(point);
-							newPerson.Strike += (o, e) => soundPlayers[newPerson.ChromeStep].Play();
-						});
-						PersonsCount = $"M={persons.Count}";
-					}
-				}
-
-				//не применяем автонастройку gDelta, если пользователь руками её изменил, до тех пор, пока не изменится число persons
-				canAutoChangeGdelta = canAutoChangeGdelta || persons.Count != lastPersonsCount;
-
-				if (canAutoChangeGdelta)
-				{
-					var newCountDiff = (parameters.PersonsCount - persons.Count) / (double)parameters.PersonsCount;
-					parameters.Gdelta = newCountDiff * parameters.G;
-				}
-			};
-
-			timer.Start();
+			iterationTimer.Start();
 			isStarted = true;
+		}
+
+		private void OnIteration(object _, ElapsedEventArgs __)
+		{
+			Person.Iteration(persons, deads, newBorns, locker, personsCanvas, statistics);
+			var rnd = new Random();
+
+			//смерть
+			while (deads.TryTake(out Person person))
+			{
+				double count = persons.Count + deads.Count;
+				double p = count / (parameters.PersonsCount + count);
+
+				if (rnd.NextDouble() > p - 0.2)//с доп.поправкой, чтобы увеличить верояность смерти
+				{
+					lock (locker)
+					{
+						persons.Remove(person);
+					}
+					person.StartDying(personsCanvasBackBrush.Color);
+				}
+			}
+
+			//зарождение новых
+			while (newBorns.TryTake(out Point point))
+			{
+				if (persons.Count > 100)
+				{
+					newBorns.Clear();
+					return;
+				}
+
+				double count = persons.Count + newBorns.Count;
+				double p = count / (parameters.PersonsCount + count);
+
+				if (rnd.NextDouble() < p)
+				{
+					this.Dispatcher.Invoke(() =>
+					{
+						MakeNewPerson().SetLocation(point);
+					});
+				}
+			}
+
+			//не применяем автонастройку gDelta, если пользователь руками её изменил, до тех пор, пока не изменится число persons
+			canAutoChangeGdelta = canAutoChangeGdelta || persons.Count != lastPersonsCount;
+
+			if (canAutoChangeGdelta)
+			{
+				var newCountDiff = (parameters.PersonsCount - persons.Count) / (double)parameters.PersonsCount;
+				parameters.Gdelta = newCountDiff * parameters.G;
+			}
+		}
+
+		private Person MakeNewPerson()
+		{
+			var person = new Person(parameters);//, persons, personsCanvas, locker);
+			lock (locker)
+			{
+				persons.Add(person);
+			}
+			personsCanvas.Dispatcher.Invoke(() => personsCanvas.Children.Add(person.MainCircleCanvas));
+			person.Strike += (o, e) => soundPlayers[person.ChromeStep].Play();
+			person.Kill += (o, e) =>
+				personsCanvas.Dispatcher.Invoke(() => personsCanvas.Children.Remove(person.MainCircleCanvas));
+
+			return person;
 		}
 
 		private void StartContinue(object? _, EventArgs __)

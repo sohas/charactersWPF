@@ -40,13 +40,12 @@ namespace Characters.Model
 		private Canvas mainCircleCanvas;
 		private readonly double basicRotateAngle;
 
-		private readonly List<double> characters = new();
-		private readonly List<Color> charactersColors = new();
+		private readonly List<double> characters;
+		private readonly List<Color> charactersColors;
 		private readonly Point chromeVector;
 		private readonly int chromeStep;
 		private readonly List<Person> persons;
 		private readonly Canvas personsCanvas;
-		private readonly Dictionary<int, Player> soundPlayers;
 
 		private Timer killTimer = new Timer();
 		#endregion
@@ -90,12 +89,11 @@ namespace Characters.Model
 		public event EventHandler Strike;
 		public event PropertyChangedEventHandler? PropertyChanged;
 
-		public Person(BasicParameters parameters, List<Person> persons, Canvas personsCanvas, 
-			Dictionary<int, Player> soundPlayers, object locker)
+		public Person(BasicParameters parameters, List<Person> persons, Canvas personsCanvas, object locker)
 		{
 			Parameters ??= parameters;
-			birthTime = DateTime.Now;
-			state = PersonState.NewBorn;
+			this.birthTime = DateTime.Now;
+			this.state = PersonState.NewBorn;
 
 			this.persons = persons;
 			lock (locker)
@@ -106,23 +104,22 @@ namespace Characters.Model
 			var rnd = new Random();
 			SetStartKinematic(rnd);
 
-			characters = MakeCharecters(rnd);
-			charactersColors = characters.Select(x => GetColor(x)).ToList();
-			chromeVector = GetChromeVector(characters);
+			this.characters = MakeCharecters(rnd);
+			this.charactersColors = characters.Select(x => GetColor(x)).ToList();
+			this.chromeVector = GetChromeVector(characters);
 			var chromeAngle = GetChromeAngle(chromeVector);
-			chromeStep = GetChromeStep(chromeAngle);
-			meanColor = GetMeanColor(chromeAngle, GetChromeR(chromeVector));
+			this.chromeStep = GetChromeStep(chromeAngle);
+			this.meanColor = GetMeanColor(chromeAngle, GetChromeRadius(chromeVector));
 
 			basicRotateAngle = rnd.NextDouble() * 5;
 			BuildMainCanvasAndAllCircles();
 			this.personsCanvas = personsCanvas;
-			personsCanvas.Children.Add(mainCircleCanvas);
-
-			this.soundPlayers = soundPlayers;
-			Strike += (o, e) => soundPlayers[ChromeStep].Play();
+			this.personsCanvas.Children.Add(mainCircleCanvas);
 
 			killTimer.Interval = Parameters.DeathInterval;
 			killTimer.Elapsed += Dying;
+
+			OnStrike();
 		}
 
 		#region pubic methods
@@ -174,21 +171,22 @@ namespace Characters.Model
 			Y_TopOnCanvas = newY = location.Y;
 		}
 
-		public void Kill() 
+		public void Kill()
 		{
 			state = PersonState.Dead;
 
 			mainCircle.Dispatcher.Invoke(() =>
 			{
-				ColorAnimation ca = new ColorAnimation(
-					((SolidColorBrush)personsCanvas.Background).Color, 
+				var finalColor = Colors.White;
+
+				ColorAnimation ca = new ColorAnimation(finalColor,
 					new Duration(TimeSpan.FromMilliseconds(Parameters.DeathInterval)));
 
-				foreach (Ellipse circle in mainCircleCanvas.Children) 
+				foreach (Ellipse circle in mainCircleCanvas.Children)
 				{
 					circle.Fill.BeginAnimation(SolidColorBrush.ColorProperty, ca);
 
-					if (circle == mainCircle) 
+					if (circle == mainCircle)
 					{
 						circle.Stroke.BeginAnimation(SolidColorBrush.ColorProperty, ca);
 					}
@@ -210,27 +208,27 @@ namespace Characters.Model
 			this.Y_TopOnCanvas = rnd.NextDouble() * (Parameters.MaxHeight - Parameters.Radius * 2);
 		}
 
-		private static Point GetChromeVector(List<double> characters) 
+		private static Point GetChromeVector(List<double> characters)
 		{
 			double xAccum = 0;
 			double yAccum = 0;
 
-			if (characters.Count == 0) 
+			if (characters.Count == 0)
 			{
 				return new Point(0, 0);
 			}
 
-			foreach (var character in characters) 
+			foreach (var character in characters)
 			{
 				var angle = Math.PI * 2 * character;
 				xAccum += Math.Cos(angle);
 				yAccum += Math.Sin(angle);
 			}
 
-			return new Point(xAccum/characters.Count, yAccum/characters.Count);
+			return new Point(xAccum / characters.Count, yAccum / characters.Count);
 		}
 
-		private static double GetChromeR(Point chromeVector) 
+		private static double GetChromeRadius(Point chromeVector)
 		{
 			var xAccum = chromeVector.X;
 			var yAccum = chromeVector.Y;
@@ -238,12 +236,12 @@ namespace Characters.Model
 			return Math.Sqrt(xAccum * xAccum + yAccum * yAccum);
 		}
 
-		private static double GetChromeAngle(Point chromeVector) 
+		private static double GetChromeAngle(Point chromeVector)
 		{
 			var xAccum = chromeVector.X;
 			var yAccum = chromeVector.Y;
 
-			var r = GetChromeR(chromeVector);
+			var r = GetChromeRadius(chromeVector);
 			var ang =
 				r == 0 ?
 				0 :
@@ -254,7 +252,7 @@ namespace Characters.Model
 			return ang / (Math.PI * 2);
 		}
 
-		private static int GetChromeStep(double chromeAngle) 
+		private static int GetChromeStep(double chromeAngle)
 		{
 			var res = (int)(chromeAngle * Parameters.MaxNumberCharacterTypes);
 			res = res % 2 == 0 ? res / 2 * 7 : (res - 1) / 2 * 7 + 4;
@@ -319,11 +317,11 @@ namespace Characters.Model
 			return Color.FromRgb((byte)R, (byte)G, (byte)B);
 		}
 
-		private static Color GetMeanColor(double chromeAngle, double chromeR) 
+		private static Color GetMeanColor(double chromeAngle, double chromeR)
 		{
 			var res = GetColor(chromeAngle);
 			var baseK = 1 / 2.0;
-			res.A = (byte)(res.A * chromeR * (1 - (1 - baseK)/Parameters.MaxNumberCharacters));
+			res.A = (byte)(res.A * chromeR * (1 - (1 - baseK) / Parameters.MaxNumberCharacters));
 			return res;
 		}
 
@@ -409,7 +407,7 @@ namespace Characters.Model
 			{
 				foreach (var secondCharacter in second.characters)
 				{
-					force += character.GetBasicForceFrom(secondCharacter, Parameters); 
+					force += character.GetBasicForceFrom(secondCharacter, Parameters);
 				}
 			}
 
@@ -417,18 +415,16 @@ namespace Characters.Model
 
 			if (distance < 2 * Parameters.Radius)
 			{
-				Strike?.Invoke(this, EventArgs.Empty);
-
-				if (force < 0) 
+				if (force < 0)
 				{
 					curNegImpact = force;
 				}
-				else 
+				else
 				{
 					curPosImpact = force;
 				}
-				
-				force = - Parameters.Elasticity;
+
+				force = -Parameters.Elasticity;
 			}
 			else
 			{
@@ -472,44 +468,48 @@ namespace Characters.Model
 			if (X_LeftOnCanvas < 0 && velocityX <= 0)
 			{
 				velocityX = -velocityX;
-				Strike?.Invoke(this, EventArgs.Empty);
-				curWallImpact -= Parameters.Elasticity; 
+				X_LeftOnCanvas = 0;
+				curWallImpact -= Parameters.Elasticity;
+				OnStrike();
 			}
 			else if (X_LeftOnCanvas > Parameters.MaxWidth - Parameters.Radius * 2 && velocityX >= 0)
 			{
 				velocityX = -velocityX;
-				Strike?.Invoke(this, EventArgs.Empty);
+				X_LeftOnCanvas = Parameters.MaxWidth - Parameters.Radius * 2;
 				curWallImpact -= Parameters.Elasticity;
+				OnStrike();
 			}
 
 			if (Y_TopOnCanvas < 0 && velocityY <= 0)
 			{
 				velocityY = -velocityY;
-				Strike?.Invoke(this, EventArgs.Empty);
+				Y_TopOnCanvas = 0;
 				curWallImpact -= Parameters.Elasticity;
+				OnStrike();
 			}
 			else if (Y_TopOnCanvas > Parameters.MaxHeight - Parameters.Radius * 2 && velocityY >= 0)
 			{
 				velocityY = -velocityY;
-				Strike?.Invoke(this, EventArgs.Empty);
+				Y_TopOnCanvas = Parameters.MaxHeight - Parameters.Radius * 2;
 				curWallImpact -= Parameters.Elasticity;
+				OnStrike();
 			}
 		}
 
-		private void ProcessImpacts(ConcurrentBag<Person> deads, ConcurrentBag<Point> newBorns) 
+		private void ProcessImpacts(ConcurrentBag<Person> deads, ConcurrentBag<Point> newBorns)
 		{
 			lastPosImpact = curPosImpact == 0 ? 0 : lastPosImpact + curPosImpact;
 			lastNegImpact = curNegImpact == 0 ? 0 : lastNegImpact + curNegImpact;
 			lastWallImpact = curWallImpact == 0 ? 0 : lastWallImpact + curWallImpact;
 
 			if (
-				lastWallImpact < -Parameters.Elasticity * Parameters.BurnDethThres ||
-				lastNegImpact < -(Parameters.G - Parameters.Gdelta) * Parameters.BurnDethThres)
+				lastWallImpact < -Parameters.Elasticity * Parameters.BurnDethThreshold ||
+				lastNegImpact < -(Parameters.G - Parameters.Gdelta) * Parameters.BurnDethThreshold)
 			{
 				deads.Add(this);
 			}
 
-			if ( lastPosImpact > (Parameters.G + Parameters.Gdelta) * Parameters.BurnDethThres && this.state != PersonState.Dead)
+			if (lastPosImpact > (Parameters.G + Parameters.Gdelta) * Parameters.BurnDethThreshold && this.state != PersonState.Dead)
 			{
 				lastPosImpact = 0;
 				curPosImpact = 0;
@@ -520,12 +520,20 @@ namespace Characters.Model
 		private void Dying(object sender, ElapsedEventArgs e)
 		{
 			personsCanvas?.Dispatcher.Invoke(() => personsCanvas.Children.Remove(mainCircleCanvas));
+			killTimer.Stop();
+			killTimer.Dispose();
+			OnStrike();
 		}
 		#endregion
 
 		private void NotifyPropertyChanged(string v)
 		{
 			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(v));
+		}
+
+		private void OnStrike() 
+		{
+			Strike?.Invoke(this, EventArgs.Empty);
 		}
 	}
 }

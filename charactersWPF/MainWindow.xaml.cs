@@ -6,31 +6,63 @@ using Xceed.Wpf.Toolkit;
 using Timer = System.Timers.Timer;
 using charactersWPF.Model;
 using System.Collections.Concurrent;
+using System.ComponentModel;
+using System.Windows.Data;
+using System;
 
 namespace charactersWPF
 {
-	public partial class MainWindow : Window
+	public partial class MainWindow : Window, INotifyPropertyChanged
 	{
 		private readonly Grid mainGrid = new();
 		private readonly DockPanel controlDockPanel = new();
+		private readonly Canvas indicatorsCanvas = new();
+		private readonly Label indicatorMass = new Label();
 		private readonly Canvas personsCanvas = new();
 		private readonly Button closeButton = new Button();
 		private readonly Button fullButton = new Button();
 		private readonly Button minimizeButton = new Button();
 		private readonly Button newButton = new Button();
 		private readonly Button startButton = new Button();
+		private Thickness uiMargin;
+		private double basicH;
 
-		private Person capturedPerson = null;
 		private readonly List<Person> persons = new();
 		private readonly object locker = new object();
-		private readonly ConcurrentBag<Person> deads = new ();
-		private readonly ConcurrentBag<Point> newBorns = new ();
+		private readonly ConcurrentBag<Person> deads = new();
+		private readonly ConcurrentBag<Point> newBorns = new();
 		private readonly Timer timer = new Timer();
 		private bool isStarted = false;
 		private readonly BasicParameters parameters;
 		private System.Windows.WindowState currentState = System.Windows.WindowState.Normal;
 		private Brush backColor;
-		private readonly Dictionary<int, Player> soundPlayers = new ();
+		private readonly Dictionary<int, Player> soundPlayers = new();
+		private bool canAutoChangeGdelta = true;
+		private int lastPersonsCount = 0;
+
+		public event PropertyChangedEventHandler? PropertyChanged;
+
+		private string personsCount;
+		public string PersonsCount
+		{
+			get
+			{
+				return personsCount;
+			}
+			set
+			{
+				if (personsCount != value)
+				{
+					personsCount = value;
+					NotifyPropertyChanged("PersonsCount");
+				}
+			}
+		}
+
+		private void NotifyPropertyChanged(string v)
+		{
+			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(v));
+		}
 
 		public MainWindow()
 		{
@@ -43,11 +75,10 @@ namespace charactersWPF
 			var gDelta = 0.0;
 			var elasticity = 5;
 			var viscosity = 5;
-			var timeQuant = 20;
 
 			parameters = new BasicParameters(
 			    size, radius, maxNumberCharacterTypes, maxNumberCharacters, personsCount,
-			    g, gDelta, elasticity, viscosity, timeQuant);
+			    g, gDelta, elasticity, viscosity);
 
 			MakeDesign();
 
@@ -111,18 +142,17 @@ namespace charactersWPF
 			this.closeButton.Margin = new(0);
 			this.closeButton.BorderThickness = new Thickness(0);
 			this.closeButton.HorizontalAlignment = HorizontalAlignment.Right;
-			DockPanel.SetDock(closeButton, Dock.Right);
 			this.closeButton.Content = " X ";
 			this.closeButton.Width = 25;
 			this.closeButton.Click += (o, e) => Close();
 			this.controlDockPanel.Children.Add(closeButton);
+			DockPanel.SetDock(closeButton, Dock.Right);
 
 			this.fullButton.Background = backColor;
 			this.fullButton.Foreground = Brushes.White;
 			this.fullButton.Margin = new(0);
 			this.fullButton.BorderThickness = new Thickness(0);
 			this.fullButton.HorizontalAlignment = HorizontalAlignment.Right;
-			DockPanel.SetDock(fullButton, Dock.Right);
 			this.fullButton.Content = " O ";
 			this.fullButton.Width = 25;
 			this.fullButton.Click += (o, e) =>
@@ -143,7 +173,7 @@ namespace charactersWPF
 					this.minimizeButton.Visibility = Visibility.Visible;
 				}
 			};
-
+			DockPanel.SetDock(fullButton, Dock.Right);
 			this.controlDockPanel.Children.Add(fullButton);
 
 			this.minimizeButton.Background = backColor;
@@ -152,13 +182,13 @@ namespace charactersWPF
 			this.minimizeButton.Margin = new(0);
 			this.minimizeButton.BorderThickness = new Thickness(0);
 			this.minimizeButton.HorizontalAlignment = HorizontalAlignment.Right;
-			DockPanel.SetDock(minimizeButton, Dock.Right);
 			this.minimizeButton.Content = "__";
 			this.minimizeButton.Width = 25;
 			this.minimizeButton.Click += (o, e) => this.WindowState = System.Windows.WindowState.Minimized;
+			DockPanel.SetDock(minimizeButton, Dock.Right);
 			this.controlDockPanel.Children.Add(minimizeButton);
 
-			var uiMargin = new Thickness(0, 0, 10, 0);
+			uiMargin = new Thickness(0, 0, 10, 0);
 
 			this.startButton.Background = backColor;
 			this.startButton.Foreground = Brushes.White;
@@ -168,7 +198,7 @@ namespace charactersWPF
 			this.startButton.Click += StartContinue;
 			this.controlDockPanel.Children.Add(newButton);
 
-			var basicH = startButton.Height;
+			basicH = startButton.Height;
 
 			this.newButton.Background = backColor;
 			this.newButton.Foreground = Brushes.White;
@@ -179,43 +209,54 @@ namespace charactersWPF
 			this.newButton.Click += New;
 			this.controlDockPanel.Children.Add(startButton);
 
-			var chTypesNumberLabel = MakeAndAddLabel("T", basicH, new());
+			var chTypesNumberLabel = MakeAndAddLabel("T", new());
+			chTypesNumberLabel.Margin = new Thickness();
 
-			var chTypesNumberInput = MakeAndAddInput(parameters.MaxNumberCharacterTypes, basicH, uiMargin);
+			var chTypesNumberInput = MakeAndAddInput(parameters.MaxNumberCharacterTypes, uiMargin);
 			chTypesNumberInput.ValueChanged += (o, e) => parameters.MaxNumberCharacterTypes = (int)chTypesNumberInput.Value;
 
-			var chNumberLabel = MakeAndAddLabel("Ch", basicH, new());
+			var chNumberLabel = MakeAndAddLabel("Ch", new());
 
-			var chNumberInput = MakeAndAddInput(parameters.MaxNumberCharacters, basicH, uiMargin);
+			var chNumberInput = MakeAndAddInput(parameters.MaxNumberCharacters, uiMargin);
 			chNumberInput.ValueChanged += (o, e) => parameters.MaxNumberCharacters = (int)chNumberInput.Value;
 
-			var personsNumberLabel = MakeAndAddLabel("N", basicH, new());
+			var personsNumberLabel = MakeAndAddLabel("N", new());
 
-			var personsNumberInput = MakeAndAddInput(parameters.PersonsCount, basicH, uiMargin);
-			personsNumberInput.ValueChanged += (o, e) => parameters.PersonsCount = (int)personsNumberInput.Value;
+			var personsNumberInput = MakeAndAddInput(parameters.PersonsCount, uiMargin);
+			personsNumberInput.ValueChanged += (o, e) =>
+			{
+				parameters.PersonsCount = (int)personsNumberInput.Value;
+				canAutoChangeGdelta = true;
+			};
 
-			var gLabel = MakeAndAddLabel("G", basicH, new());
+			var gLabel = MakeAndAddLabel("G", new());
 
-			var gInput = MakeAndAddInput((int)parameters.G, basicH, uiMargin);
+			var gInput = MakeAndAddInput(parameters.G, uiMargin);
 			gInput.ValueChanged += (o, e) => parameters.G = (double)gInput.Value;
 
-			var gDeltaLabel = MakeAndAddLabel("dG", basicH, new());
+			var gDeltaLabel = MakeAndAddLabel("dG", new());
 
-			var gDeltaInput = MakeAndAddInputD(parameters.Gdelta, basicH, uiMargin, "Gdelta");
-			//gDeltaInput.ValueChanged += (o, e) => parameters.Gdelta = (double)gDeltaInput.Value;
+			var gDeltaInput = MakeAndAddInput(parameters.Gdelta, uiMargin, "Gdelta");
+			gDeltaInput.Maximum = parameters.G - 0.1;
+			gDeltaInput.Minimum = -parameters.G + 0.1;
+			gDeltaInput.ValueChanged += (o, e) =>
+			{
+				gDeltaInput.Text = $"{gDeltaInput.Value:F2}";
+				lastPersonsCount = persons.Count;
+				canAutoChangeGdelta = false;
+			};
 
-			var elasticityLabel = MakeAndAddLabel("E", basicH, new());
+			var elasticityLabel = MakeAndAddLabel("E", new());
 
-			var elasticityInput = MakeAndAddInput((int)parameters.Elasticity, basicH, uiMargin);
+			var elasticityInput = MakeAndAddInput(parameters.Elasticity, uiMargin);
 			elasticityInput.ValueChanged += (o, e) => parameters.Elasticity = (double)elasticityInput.Value;
 
-			var viscosityLabel = MakeAndAddLabel("V", basicH, new());
+			var viscosityLabel = MakeAndAddLabel("V", new());
 
-			var viscosityInput = MakeAndAddInput((int)parameters.Viscosity, basicH, uiMargin);
+			var viscosityInput = MakeAndAddInput(parameters.Viscosity, uiMargin);
 			viscosityInput.ValueChanged += (o, e) => parameters.Viscosity = (double)viscosityInput.Value;
 
-			var emptyLabel = MakeAndAddLabel("", basicH, new());
-
+			var emptyLabel = MakeAndAddLabel("", new());
 
 			this.mainGrid.Children.Add(this.personsCanvas);
 			Grid.SetColumn(personsCanvas, 0);
@@ -224,11 +265,30 @@ namespace charactersWPF
 			this.personsCanvas.Background = Brushes.Black;
 			this.personsCanvas.SizeChanged += ResizePersonsPanel;
 
+			Canvas.SetLeft(indicatorsCanvas, 0);
+			Canvas.SetTop(indicatorsCanvas, 0);
+			Canvas.SetZIndex(indicatorsCanvas, 1);
+			this.indicatorsCanvas.Background = Brushes.Transparent;
+			this.indicatorsCanvas.Width = 200;
+			this.indicatorsCanvas.Height = 50;
+
+			this.indicatorMass.Height = basicH;
+			this.indicatorMass.Background = Brushes.Transparent;
+			this.indicatorMass.Foreground = Brushes.Gray;
+			this.indicatorMass.FontSize = 20;
+			Canvas.SetLeft(indicatorMass, 0);
+			Canvas.SetTop(indicatorMass, 0);
+			this.indicatorMass.DataContext = this;
+			var cbd = new Binding("PersonsCount");
+			cbd.StringFormat = "M={0}";
+			this.indicatorMass.SetBinding(Label.ContentProperty, cbd);
+			this.indicatorsCanvas.Children.Add(indicatorMass);
+
 			this.Width = parameters.MaxWidth;
 			this.Height = parameters.MaxHeight;
 		}
 
-		private Label MakeAndAddLabel(string text, double height, Thickness uiMargin)
+		private Label MakeAndAddLabel(string text, Thickness uiMargin)
 		{
 			var label = new Label()
 			{
@@ -238,7 +298,7 @@ namespace charactersWPF
 				Foreground = Brushes.White,
 				Margin = uiMargin,
 				BorderThickness = new Thickness(0),
-				Height = height,
+				Height = basicH,
 			};
 
 			DockPanel.SetDock(label, Dock.Left);
@@ -247,27 +307,7 @@ namespace charactersWPF
 			return label;
 		}
 
-		private IntegerUpDown MakeAndAddInput(int startValue, double height, Thickness uiMargin)
-		{
-			var input = new IntegerUpDown()
-			{
-				Background = Brushes.White,
-				Foreground = backColor,
-				Margin = uiMargin,
-				BorderThickness = new Thickness(0),
-				Height = height,
-				Width = 50,
-				Value = startValue,
-				AllowSpin = true,
-			};
-
-			DockPanel.SetDock(input, Dock.Left);
-			this.controlDockPanel.Children.Add(input);
-
-			return input;
-		}
-
-		private DoubleUpDown MakeAndAddInputD(double startValue, double height, Thickness uiMargin, string ValueName)
+		private DoubleUpDown MakeAndAddInput(double startValue, Thickness uiMargin, string ValueName = null)
 		{
 			var input = new DoubleUpDown()
 			{
@@ -275,14 +315,18 @@ namespace charactersWPF
 				Foreground = backColor,
 				Margin = uiMargin,
 				BorderThickness = new Thickness(0),
-				Height = height,
+				Height = basicH,
 				Width = 50,
-				//Value = startValue,
+				Value = startValue,
 				DataContext = parameters,
 				AllowSpin = true,
-				Increment = 1,
 			};
-			input.SetBinding(DoubleUpDown.ValueProperty, ValueName);
+
+			if (!string.IsNullOrEmpty(ValueName))
+			{
+				input.SetBinding(DoubleUpDown.ValueProperty, ValueName);
+			}
+
 			DockPanel.SetDock(input, Dock.Left);
 			this.controlDockPanel.Children.Add(input);
 
@@ -333,30 +377,39 @@ namespace charactersWPF
 			{
 				persons.Clear();
 				personsCanvas.Children.Clear();
+				personsCanvas.Children.Add(this.indicatorsCanvas);
 
 				for (int i = 0; i < parameters.PersonsCount; i++)
 				{
-					var person = new Person(parameters, persons, personsCanvas, soundPlayers, locker);
+					var person = new Person(parameters, persons, personsCanvas, locker);
+					person.Strike += (o, e) => soundPlayers[person.ChromeStep].Play();
 				}
+
+				PersonsCount = $"M={persons.Count}";
 			}
 			timer.Elapsed += (o, e) =>
 			{
 				Person.Iteration(persons, deads, newBorns, locker);
 				var rnd = new Random();
 
-				while (deads.TryTake(out Person person)) 
+				//смерть
+				while (deads.TryTake(out Person person))
 				{
-					var p = 1.0/(persons.Count + deads.Count);
-					if (rnd.NextDouble() > p) 
+					double count = persons.Count + deads.Count;
+					double p = count / (parameters.PersonsCount + count);
+
+					if (rnd.NextDouble() > p - 0.2)
 					{
 						lock (locker)
 						{
 							persons.Remove(person);
 						}
 						person.Kill();
+						PersonsCount = $"M={persons.Count}";
 					}
 				}
 
+				//зарождение новых
 				while (newBorns.TryTake(out Point point))
 				{
 					if (persons.Count > 100)
@@ -365,19 +418,29 @@ namespace charactersWPF
 						return;
 					}
 
-					var p = 1.0 / (persons.Count + deads.Count);
+					double count = persons.Count + newBorns.Count;
+					double p = count / (parameters.PersonsCount + count);
+
 					if (rnd.NextDouble() < p)
 					{
 						this.Dispatcher.Invoke(() =>
 						{
-							var np = new Person(parameters, persons, personsCanvas, soundPlayers, locker);
-							np.SetLocation(point);
+							var newPerson = new Person(parameters, persons, personsCanvas, locker);
+							newPerson.SetLocation(point);
+							newPerson.Strike += (o, e) => soundPlayers[newPerson.ChromeStep].Play();
 						});
+						PersonsCount = $"M={persons.Count}";
 					}
 				}
 
-				var newCountDiff = (parameters.PersonsCount - persons.Count)/(double)parameters.PersonsCount;
-				parameters.Gdelta = (newCountDiff * parameters.G);
+				//не применяем автонастройку gDelta, если пользователь руками её изменил, до тех пор, пока не изменится число persons
+				canAutoChangeGdelta = canAutoChangeGdelta || persons.Count != lastPersonsCount;
+
+				if (canAutoChangeGdelta)
+				{
+					var newCountDiff = (parameters.PersonsCount - persons.Count) / (double)parameters.PersonsCount;
+					parameters.Gdelta = newCountDiff * parameters.G;
+				}
 			};
 
 			timer.Start();

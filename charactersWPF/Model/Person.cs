@@ -34,12 +34,14 @@ namespace Characters.Model
 		private int wallStrikes;
 		private int personsStrikes;
 
-		private readonly DateTime birthTime;
+		private DateTime birthTime;
+		private readonly double lifeTimeSeconds;
 		private PersonState state;
 		private readonly Color meanColor;
 		private Ellipse mainCircle;
 		private Canvas mainCircleCanvas;
 		private readonly double basicRotateAngle;
+		private readonly Random rnd = new Random();
 
 		private readonly List<double> characters;
 		private readonly List<Color> charactersColors;
@@ -93,13 +95,14 @@ namespace Characters.Model
 		public Person(BasicParameters parameters)
 		{
 			Parameters ??= parameters;
+
 			this.birthTime = DateTime.Now;
+			this.lifeTimeSeconds = Parameters.LifeTimeSeconds * (1 + rnd.NextDouble());
 			this.state = PersonState.NewBorn;
 
-			var rnd = new Random();
-			SetStartKinematic(rnd);
+			SetStartKinematic();
 
-			this.characters = MakeCharecters(rnd);
+			this.characters = MakeCharecters();
 			this.charactersColors = characters.Select(x => GetColor(x)).ToList();
 			this.chromeVector = GetChromeVector(characters);
 			var chromeAngle = GetChromeAngle(chromeVector);
@@ -110,7 +113,7 @@ namespace Characters.Model
 
 			BuildMainCanvasAndAllCircles();
 
-			dyingTimer.Interval = Parameters.DeathInterval;
+			dyingTimer.Interval = Parameters.DeathIntervalMseconds;
 			dyingTimer.Elapsed += KillPerson;
 
 			OnStrike();
@@ -182,8 +185,22 @@ namespace Characters.Model
 
 			mainCircle.Dispatcher.Invoke(() =>
 			{
-				ColorAnimation ca = new ColorAnimation(dyingColor,
-					new Duration(TimeSpan.FromMilliseconds(Parameters.DeathInterval)));
+				var duration = new Duration(TimeSpan.FromMilliseconds(Parameters.DeathIntervalMseconds));
+
+				ColorAnimation ca = new ColorAnimation(dyingColor, duration);
+				DoubleAnimation da = new DoubleAnimation()
+				{
+					From = Parameters.Radius * 2,
+					To = Parameters.Radius * 6,
+					Duration = duration,
+				};
+
+				DoubleAnimation daR = new DoubleAnimation()
+				{
+					From = 0 ,
+					To = - Parameters.Radius * 2,
+					Duration = duration,
+				};
 
 				foreach (Ellipse circle in mainCircleCanvas.Children)
 				{
@@ -195,6 +212,10 @@ namespace Characters.Model
 					}
 				}
 
+				mainCircle.BeginAnimation(Ellipse.WidthProperty, da);
+				mainCircle.BeginAnimation(Ellipse.HeightProperty, da);
+				mainCircle.BeginAnimation(Canvas.LeftProperty, daR);
+				mainCircle.BeginAnimation(Canvas.TopProperty, daR);
 				mainCircleCanvas.RenderTransform = null;
 			});
 
@@ -203,7 +224,7 @@ namespace Characters.Model
 		#endregion
 
 		#region setup
-		private void SetStartKinematic(Random rnd)
+		private void SetStartKinematic()
 		{
 			this.velocityX = 0;
 			this.velocityY = 0;
@@ -264,7 +285,7 @@ namespace Characters.Model
 			return res;
 		}
 
-		private static List<double> MakeCharecters(Random rnd)
+		private List<double> MakeCharecters()
 		{
 			var charactersNumber = rnd.Next(1, Parameters.MaxNumberCharacters + 1);
 			var res = new List<double>();
@@ -387,7 +408,7 @@ namespace Characters.Model
 			{
 				From = 0,
 				By = 360,
-				Duration = TimeSpan.FromMilliseconds(Parameters.TimeQuant * 360 / (basicRotateAngle == 0 ? 1 : basicRotateAngle)),
+				Duration = TimeSpan.FromMilliseconds(Parameters.TimeQuantMseconds * 360 / (basicRotateAngle == 0 ? 1 : basicRotateAngle)),
 				RepeatBehavior = RepeatBehavior.Forever,
 			};
 			mainCircleCanvas.RenderTransform.BeginAnimation(RotateTransform.AngleProperty, rotateAnimation);
@@ -448,8 +469,8 @@ namespace Characters.Model
 
 		private void SetNewVelocity()
 		{
-			velocityX += forceX * Parameters.TimeQuant / Parameters.Dimention;
-			velocityY += forceY * Parameters.TimeQuant / Parameters.Dimention;
+			velocityX += forceX * Parameters.TimeQuantMseconds / Parameters.Dimention;
+			velocityY += forceY * Parameters.TimeQuantMseconds / Parameters.Dimention;
 		}
 
 		private void AddViscosity()
@@ -463,8 +484,8 @@ namespace Characters.Model
 
 		private void SetNewLocation()
 		{
-			newX = this.X_LeftOnCanvas + (velocityX * Parameters.TimeQuant) / Parameters.Dimention;
-			newY = this.Y_TopOnCanvas + (velocityY * Parameters.TimeQuant) / Parameters.Dimention;
+			newX = this.X_LeftOnCanvas + (velocityX * Parameters.TimeQuantMseconds) / Parameters.Dimention;
+			newY = this.Y_TopOnCanvas + (velocityY * Parameters.TimeQuantMseconds) / Parameters.Dimention;
 		}
 
 		private void AddWallsReactionAndImpact()
@@ -514,10 +535,12 @@ namespace Characters.Model
 			lastPosImpact = curPosImpact == 0 ? 0 : lastPosImpact + curPosImpact;
 			lastNegImpact = curNegImpact == 0 ? 0 : lastNegImpact + curNegImpact;
 			lastWallImpact = curWallImpact == 0 ? 0 : lastWallImpact + curWallImpact;
+			var ageDeathProbability = GetAgeDeathProbability();
 
 			if (
 				lastWallImpact < -Parameters.Elasticity * Parameters.BurnDethThreshold ||
-				lastNegImpact < -(Parameters.G - Parameters.Gdelta) * Parameters.BurnDethThreshold)
+				lastNegImpact < -(Parameters.G - Parameters.Gdelta) * Parameters.BurnDethThreshold ||
+				ageDeathProbability)
 			{
 				deads.Add(this);
 			}
@@ -528,6 +551,21 @@ namespace Characters.Model
 				curPosImpact = 0;
 				newBorns.Add(new Point(this.x_LeftOnCanvas, this.y_TopOnCanvas));
 			}
+		}
+
+		private bool GetAgeDeathProbability() 
+		{
+			var ageSeconds = (DateTime.Now - birthTime).TotalSeconds;
+			var delta = ageSeconds - lifeTimeSeconds;
+			var res = false;
+
+			if (delta >= 0) 
+			{
+				res = rnd.NextDouble() > 0.3;
+				birthTime = DateTime.Now;
+			}
+
+			return res;
 		}
 
 		private void KillPerson(object sender, ElapsedEventArgs e)

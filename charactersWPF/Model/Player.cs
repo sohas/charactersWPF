@@ -22,7 +22,11 @@ namespace charactersWPF.Model
 		{
 			if (wout.PlaybackState == PlaybackState.Stopped)
 			{
-				wout.Play();
+				try
+				{
+					wout.Play();
+				}
+				catch { }
 			}
 		}
 

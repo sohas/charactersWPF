@@ -68,7 +68,7 @@ namespace charactersWPF
 
 		private void SetupIterationTimer()
 		{
-			iterationTimer = new Timer() { Interval = parameters.TimeQuant };
+			iterationTimer = new Timer() { Interval = parameters.TimeQuantMseconds };
 			iterationTimer.Elapsed += OnIteration;
 		}
 
@@ -365,7 +365,7 @@ namespace charactersWPF
 
 		private void Continue()
 		{
-			if (!isStarted && iterationTimer is not null)
+			if (!isStarted && iterationTimer is not null && persons.Any())
 			{
 				iterationTimer.Start();
 				isStarted = true;
@@ -397,6 +397,12 @@ namespace charactersWPF
 
 		private void OnIteration(object _, ElapsedEventArgs __)
 		{
+			if (persons.Count <= 1) 
+			{
+				New(null, null); 
+				return;
+			}
+
 			Person.Iteration(persons, deads, newBorns, locker, personsCanvas, statistics);
 			var rnd = new Random();
 
@@ -449,11 +455,13 @@ namespace charactersWPF
 
 		private Person MakeNewPerson()
 		{
-			var person = new Person(parameters);//, persons, personsCanvas, locker);
+			var person = new Person(parameters);
+
 			lock (locker)
 			{
 				persons.Add(person);
 			}
+			
 			personsCanvas.Dispatcher.Invoke(() => personsCanvas.Children.Add(person.MainCircleCanvas));
 			person.Strike += (o, e) => soundPlayers[person.ChromeStep].Play();
 			person.Kill += (o, e) =>

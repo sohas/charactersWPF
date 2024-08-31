@@ -30,10 +30,11 @@ namespace Characters.Model
 			}
 		}
 
-		public int TimeQuant => 20;
+		public int TimeQuantMseconds => 20;
 		public double Dimention => 100.0;
 		public int BurnDethThreshold => 1;
-		public int DeathInterval => 1000;
+		public int DeathIntervalMseconds => 300;
+		public double LifeTimeSeconds => 100;
 		public double ForceCorrection => 1.0 + (MaxNumberCharacters - 1) * 0.1;//получено эмпирически, как средний модуль базовой силы в завис от N
 
 		public BasicParameters(

@@ -1,82 +1,165 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace charactersWPF.Model
+﻿namespace charactersWPF.Model
 {
 	class Statistics
 	{
-		private Queue<double> pressureQueue = new Queue<double>();
-		private Queue<double> temperatureQueue = new Queue<double>();
-		private readonly int times;
-		private double meanPressure = 0;
-		private double meanTemperature = 0;
+		private int lastItemsCount = 0;
 
-		private int lastN = 0;
-		private double lastMeanTemperature = 0;
+		private readonly Queue<double> timeQuantQueue = new Queue<double>();
+		private const int timeQuantQueueMaxLenth = 10;
+		private const double timeQuantMin = 10.0;
+		private const double timeQuantAccuracy = 5.0;
+		private double meanTimeQuantSum = 0;//суммируется по всей очереди
+		private double lastMeanTimeQuantSum = 0;
+
+		private readonly Queue<double> temperatureQueue = new Queue<double>();
+		private const int temperatureQueueMaxLength = 100;
+		private const double temperatureAccuracy = 10.0;
+		private double meanTemperatureSum = 0;//суммируется по всей очереди
+		private double lastMeanTemperatureSum = 0;
+
+		private readonly Queue<double> pressureQueue = new Queue<double>();
+		private const int pressureQueueMaxLength = 50;
+		private const double pressureAccuracy = 1.0;
+		private double meanPressure = 0;
 		private double lastMeanPressure = 0;
 
-		public int N { get; set; }
-		public double Temperature { get; set; }
-		public double Pressure { get; set; }
+		/// <summary>
+		/// число частиц
+		/// </summary>
+		public int ItemsCount { get; set; }
+
+		/// <summary>
+		/// не средняя энергия частиц, а суммарная
+		/// </summary>
+		public double TemperatureAccum { get; set; }
+
+		/// <summary>
+		/// давление как суммарное число ударов на единицу длины периметра
+		/// </summary>
+		public double PressureAccum { get; set; }
+
+		/// <summary>
+		/// периметр панели с элементами
+		/// </summary>
 		public double Perimeter { get; set; }
 
-		public event EventHandler<int> NChanged;
-		public event EventHandler<double> TemperatureChanged;
-		public event EventHandler<double> PressureChanged;
+		/// <summary>
+		/// период таймера итерации
+		/// </summary>
+		public double TimeQuant { get; set; }
 
-		public Statistics(int times)
+		public event EventHandler<int>? ItemsCountChanged;
+		public event EventHandler<double>? TemperatureChanged;
+		public event EventHandler<double>? PressureChanged;
+		public event EventHandler<double>? TimeQuantChanged;
+
+		public Statistics(double basicTimeQuant) 
 		{
-			this.times = times;
+			lastMeanTimeQuantSum = basicTimeQuant * timeQuantQueueMaxLenth;//чтобы срабатывало на уменьшение в начальных итерациях
 		}
 
-		public void StartGettingStatistics()
+		/// <summary>
+		/// чтобы привести необходимые параметры к стартовому состоянию
+		/// </summary>
+		public void StartGettingStatisticsInIteration()
 		{
-			Temperature = 0;
-			Pressure = 0;
-			N = 0;
+			TemperatureAccum = 0;
+			PressureAccum = 0;
 		}
 
+		/// <summary>
+		/// проверка на изменения параметров
+		/// </summary>
 		public void CheckStatistics()
 		{
-			if (lastN != N)
+			CheckTimeQuant();
+			CheckItemCount();
+			CheckTemperature();
+			CheckPressure();
+		}
+
+		private void CheckTimeQuant()
+		{
+			timeQuantQueue.Enqueue(TimeQuant);
+			meanTimeQuantSum += TimeQuant;
+
+			while (timeQuantQueue.Count > timeQuantQueueMaxLenth)
 			{
-				NChanged?.Invoke(this, N);
+				meanTimeQuantSum -= timeQuantQueue.Dequeue();
 			}
 
-			if (N != 0)
+			if (
+				timeQuantQueue.Count == timeQuantQueueMaxLenth && 
+				Math.Abs(lastMeanTimeQuantSum - meanTimeQuantSum) > timeQuantQueueMaxLenth * timeQuantAccuracy)
 			{
-				var newTemperature = Temperature / N;
-				temperatureQueue.Enqueue(newTemperature);
-				meanTemperature += newTemperature;
+				var newTimeQuant = meanTimeQuantSum / timeQuantQueueMaxLenth;
+				
+				newTimeQuant = 
+					newTimeQuant < timeQuantMin ? 
+					timeQuantMin : 
+					newTimeQuant; 
 
-				while (temperatureQueue.Count > times)
-				{
-					meanTemperature -= temperatureQueue.Dequeue();
-				}
+				TimeQuantChanged?.Invoke(this, newTimeQuant);
+				lastMeanTimeQuantSum = meanTimeQuantSum;
+			}
+		}
 
-				if (Math.Abs(lastMeanTemperature - meanTemperature) > times * 10)
-				{
-					TemperatureChanged?.Invoke(this, meanTemperature / times);
-					lastMeanTemperature = meanTemperature;
-				}
+		private void CheckItemCount() 
+		{
+			if (lastItemsCount != ItemsCount)
+			{
+				ItemsCountChanged?.Invoke(this, ItemsCount);
+				lastItemsCount = ItemsCount;
+			}
+		}
+
+		private void CheckTemperature()
+		{
+			if (ItemsCount == 0) 
+			{
+				return;
 			}
 
-			if (Perimeter != 0)
+			var newTemperature = TemperatureAccum / ItemsCount;//получаем среднюю по всем частицам
+			temperatureQueue.Enqueue(newTemperature);
+			meanTemperatureSum += newTemperature;
+
+			while (temperatureQueue.Count > temperatureQueueMaxLength)
 			{
-				var newPressure = Pressure / Perimeter;
-				pressureQueue.Enqueue(newPressure);
-				meanPressure += newPressure;
+				meanTemperatureSum -= temperatureQueue.Dequeue();
+			}
 
-				while (pressureQueue.Count > times)
-				{
-					meanPressure -= pressureQueue.Dequeue();
-				}
+			if (
+				temperatureQueue.Count == temperatureQueueMaxLength && 
+				Math.Abs(lastMeanTemperatureSum - meanTemperatureSum) > temperatureQueueMaxLength * temperatureAccuracy)
+			{
+				TemperatureChanged?.Invoke(this, meanTemperatureSum / temperatureQueueMaxLength);
+				lastMeanTemperatureSum = meanTemperatureSum;
+			}
+		}
 
-				if (Math.Abs(lastMeanPressure - meanPressure) > 1)
-				{
-					PressureChanged?.Invoke(this, meanPressure);
-					lastMeanPressure = meanPressure;
-				}
+		private void CheckPressure() 
+		{
+			if (Perimeter == 0) 
+			{
+				return;
+			}
+
+			var newPressure = PressureAccum / Perimeter;
+			pressureQueue.Enqueue(newPressure);
+			meanPressure += newPressure;
+
+			while (pressureQueue.Count > pressureQueueMaxLength)
+			{
+				meanPressure -= pressureQueue.Dequeue();
+			}
+
+			if (
+				pressureQueue.Count == pressureQueueMaxLength && 
+				Math.Abs(lastMeanPressure - meanPressure) > pressureAccuracy)
+			{
+				PressureChanged?.Invoke(this, meanPressure);
+				lastMeanPressure = meanPressure;
 			}
 		}
 	}

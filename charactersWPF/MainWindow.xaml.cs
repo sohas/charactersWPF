@@ -7,6 +7,7 @@ using Timer = System.Timers.Timer;
 using charactersWPF.Model;
 using System.Collections.Concurrent;
 using System.Timers;
+using System.Diagnostics;
 
 namespace charactersWPF
 {
@@ -26,6 +27,7 @@ namespace charactersWPF
 		private Label indicatorN;
 		private Label indicatorTemperature;
 		private Label indicatorPressure;
+		private Label indicatorTimeQuant;
 		private Thickness uiMargin;
 		private double basicH;
 
@@ -42,6 +44,7 @@ namespace charactersWPF
 		private bool canAutoChangeGdelta = true;
 		private int lastPersonsCount = 0;
 		private Statistics statistics;
+		private bool canIterate = true;
 		#endregion
 
 		public MainWindow()
@@ -60,10 +63,8 @@ namespace charactersWPF
 			    size, radius, maxNumberCharacterTypes, maxNumberCharacters, personsCount,
 			    g, gDelta, elasticity, viscosity);
 
-			SetupIterationTimer();
 			MakeDesign();
 			SetupSoundPlayers();
-			SetupStatistics();
 		}
 
 		private void SetupIterationTimer()
@@ -102,10 +103,16 @@ namespace charactersWPF
 
 		private void SetupStatistics()
 		{
-			statistics = new Statistics(500);
-			statistics.NChanged += (o, e) => indicatorN?.UpdateIndicator(e);
+			statistics = new Statistics(parameters.TimeQuantMseconds);
+			statistics.ItemsCountChanged += (o, e) => indicatorN?.UpdateIndicator(e);
 			statistics.TemperatureChanged += (o, e) => indicatorTemperature?.UpdateIndicator(e);
 			statistics.PressureChanged += (o, e) => indicatorPressure?.UpdateIndicator(e);
+			statistics.TimeQuantChanged += (o, e) => 
+			{
+				iterationTimer.Interval = e;
+				parameters.TimeQuantMseconds = e;
+				indicatorTimeQuant.UpdateIndicator(e);
+			};
 		}
 
 		#region design
@@ -272,6 +279,7 @@ namespace charactersWPF
 			this.indicatorN = MakeIndicator("N");
 			this.indicatorTemperature = MakeIndicator("T");
 			this.indicatorPressure = MakeIndicator("P");
+			this.indicatorTimeQuant = MakeIndicator("Q");
 
 			this.Width = parameters.MaxWidth;
 			this.Height = parameters.MaxHeight;
@@ -379,9 +387,18 @@ namespace charactersWPF
 				Stop();
 			}
 
+			parameters.ResetTimeQuant();
+			indicatorTimeQuant.UpdateIndicator(parameters.TimeQuantMseconds);
+			SetupIterationTimer();
+			SetupStatistics();
+
 			lock (locker)
 			{
 				persons.Clear();
+			}
+
+			personsCanvas.Dispatcher.Invoke(() =>
+			{
 				personsCanvas.Children.Clear();
 				personsCanvas.Children.Add(this.indicatorsCanvas);
 
@@ -389,7 +406,7 @@ namespace charactersWPF
 				{
 					MakeNewPerson();
 				}
-			}
+			});
 
 			iterationTimer.Start();
 			isStarted = true;
@@ -397,10 +414,24 @@ namespace charactersWPF
 
 		private void OnIteration(object _, ElapsedEventArgs __)
 		{
-			if (persons.Count <= 1) 
+			if (canIterate) 
 			{
-				New(null, null); 
-				return;
+				canIterate = false;
+				var currentDuration = Iterate();
+				statistics.TimeQuant = currentDuration;
+				canIterate = true;
+			}
+		}
+
+		private double Iterate()
+		{
+			var sw = new Stopwatch();
+			sw.Start();
+
+			if (persons.Count <= 1)
+			{
+				New(null, null);
+				return 0;
 			}
 
 			Person.Iteration(persons, deads, newBorns, locker, personsCanvas, statistics);
@@ -425,11 +456,11 @@ namespace charactersWPF
 			//зарождение новых
 			while (newBorns.TryTake(out Point point))
 			{
-				if (persons.Count > 100)
-				{
-					newBorns.Clear();
-					return;
-				}
+				//if (persons.Count > 100)
+				//{
+				//	newBorns.Clear();
+				//	return;
+				//}
 
 				double count = persons.Count + newBorns.Count;
 				double p = count / (parameters.PersonsCount + count);
@@ -451,6 +482,9 @@ namespace charactersWPF
 				var newCountDiff = (parameters.PersonsCount - persons.Count) / (double)parameters.PersonsCount;
 				parameters.Gdelta = newCountDiff * parameters.G;
 			}
+
+			sw.Stop();
+			return sw.ElapsedMilliseconds;
 		}
 
 		private Person MakeNewPerson()
@@ -461,7 +495,7 @@ namespace charactersWPF
 			{
 				persons.Add(person);
 			}
-			
+
 			personsCanvas.Dispatcher.Invoke(() => personsCanvas.Children.Add(person.MainCircleCanvas));
 			person.Strike += (o, e) => soundPlayers[person.ChromeStep].Play();
 			person.Kill += (o, e) =>

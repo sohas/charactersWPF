@@ -121,10 +121,10 @@ namespace Characters.Model
 
 		#region pubic methods
 		public static void Iteration(
-			List<Person> persons, ConcurrentBag<Person> deads, ConcurrentBag<Point> newBorns, 
+			List<Person> persons, ConcurrentBag<Person> deads, ConcurrentBag<Point> newBorns,
 			object locker, Canvas personsCanvas, Statistics statistics)
 		{
-			statistics.StartGettingStatistics();
+			statistics.StartGettingStatisticsInIteration();
 
 			lock (locker)
 			{
@@ -162,11 +162,11 @@ namespace Characters.Model
 				{
 					person.X_LeftOnCanvas = person.newX;
 					person.Y_TopOnCanvas = person.newY;
-					statistics.Temperature += (person.velocityX * person.velocityX + person.velocityY * person.velocityY);
-					statistics.Pressure += person.wallStrikes;
+					statistics.TemperatureAccum += (person.velocityX * person.velocityX + person.velocityY * person.velocityY);
+					statistics.PressureAccum += person.wallStrikes;
 				}
 
-				statistics.N = persons.Count;
+				statistics.ItemsCount = persons.Count;
 			}
 
 			statistics.Perimeter = 2 * (personsCanvas.ActualWidth + personsCanvas.ActualHeight) / (Parameters.Dimention * Parameters.Dimention);
@@ -197,8 +197,8 @@ namespace Characters.Model
 
 				DoubleAnimation daR = new DoubleAnimation()
 				{
-					From = 0 ,
-					To = - Parameters.Radius * 2,
+					From = 0,
+					To = -Parameters.Radius * 2,
 					Duration = duration,
 				};
 
@@ -219,7 +219,7 @@ namespace Characters.Model
 				mainCircleCanvas.RenderTransform = null;
 			});
 
-			dyingTimer.Start();
+			dyingTimer?.Start();
 		}
 		#endregion
 
@@ -553,13 +553,13 @@ namespace Characters.Model
 			}
 		}
 
-		private bool GetAgeDeathProbability() 
+		private bool GetAgeDeathProbability()
 		{
 			var ageSeconds = (DateTime.Now - birthTime).TotalSeconds;
 			var delta = ageSeconds - lifeTimeSeconds;
 			var res = false;
 
-			if (delta >= 0) 
+			if (delta >= 0)
 			{
 				res = rnd.NextDouble() > 0.3;
 				birthTime = DateTime.Now;
@@ -571,7 +571,8 @@ namespace Characters.Model
 		private void KillPerson(object sender, ElapsedEventArgs e)
 		{
 			dyingTimer.Stop();
-			dyingTimer.Dispose();
+			dyingTimer.Close();
+			dyingTimer = null;
 			OnStrike();
 			OnKill();
 		}

@@ -6,6 +6,7 @@ namespace Characters.Model
 	internal class BasicParameters : INotifyPropertyChanged
 	{
 		private double gDelta;
+		private const double timeQuantMilliseconsBase = 20;
 
 		public double MaxWidth { get; set; }
 		public double MaxHeight { get; set; }
@@ -30,7 +31,7 @@ namespace Characters.Model
 			}
 		}
 
-		public int TimeQuantMseconds => 20;
+		public double TimeQuantMseconds { get; set; } = 20;
 		public double Dimention => 100.0;
 		public int BurnDethThreshold => 1;
 		public int DeathIntervalMseconds => 300;
@@ -56,9 +57,15 @@ namespace Characters.Model
 			this.gDelta = gDelta;
 			Elasticity = elasticity;
 			Viscosity = viscosity;
+			TimeQuantMseconds = timeQuantMilliseconsBase;
 		}
 
 		public event PropertyChangedEventHandler? PropertyChanged;
+
+		public void ResetTimeQuant() 
+		{
+			TimeQuantMseconds = timeQuantMilliseconsBase;
+		}
 
 		private void NotifyPropertyChanged(string v)
 		{

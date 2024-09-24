@@ -12,13 +12,13 @@
 		private double lastMeanTimeQuantSum = 0;
 
 		private readonly Queue<double> temperatureQueue = new Queue<double>();
-		private const int temperatureQueueMaxLength = 100;
+		private const int temperatureQueueMaxLength = 250;
 		private const double temperatureAccuracy = 10.0;
 		private double meanTemperatureSum = 0;//суммируется по всей очереди
 		private double lastMeanTemperatureSum = 0;
 
 		private readonly Queue<double> pressureQueue = new Queue<double>();
-		private const int pressureQueueMaxLength = 50;
+		private const int pressureQueueMaxLength = 100;
 		private const double pressureAccuracy = 1.0;
 		private double meanPressure = 0;
 		private double lastMeanPressure = 0;
@@ -26,37 +26,50 @@
 		/// <summary>
 		/// число частиц
 		/// </summary>
-		public int ItemsCount { get; set; }
+		public int ItemsCount
+		{
+			get; set;
+		}
 
 		/// <summary>
 		/// не средняя энергия частиц, а суммарная
 		/// </summary>
-		public double TemperatureAccum { get; set; }
+		public double TemperatureAccum
+		{
+			get; set;
+		}
 
 		/// <summary>
 		/// давление как суммарное число ударов на единицу длины периметра
 		/// </summary>
-		public double PressureAccum { get; set; }
+		public double PressureAccum
+		{
+			get; set;
+		}
 
 		/// <summary>
 		/// периметр панели с элементами
 		/// </summary>
-		public double Perimeter { get; set; }
+		public double Perimeter
+		{
+			get; set;
+		}
 
 		/// <summary>
 		/// период таймера итерации
 		/// </summary>
-		public double TimeQuant { get; set; }
+		public double TimeQuant
+		{
+			get; set;
+		}
 
 		public event EventHandler<int>? ItemsCountChanged;
 		public event EventHandler<double>? TemperatureChanged;
 		public event EventHandler<double>? PressureChanged;
 		public event EventHandler<double>? TimeQuantChanged;
 
-		public Statistics(double basicTimeQuant) 
-		{
+		public Statistics(double basicTimeQuant) =>
 			lastMeanTimeQuantSum = basicTimeQuant * timeQuantQueueMaxLenth;//чтобы срабатывало на уменьшение в начальных итерациях
-		}
 
 		/// <summary>
 		/// чтобы привести необходимые параметры к стартовому состоянию
@@ -89,22 +102,22 @@
 			}
 
 			if (
-				timeQuantQueue.Count == timeQuantQueueMaxLenth && 
+				timeQuantQueue.Count == timeQuantQueueMaxLenth &&
 				Math.Abs(lastMeanTimeQuantSum - meanTimeQuantSum) > timeQuantQueueMaxLenth * timeQuantAccuracy)
 			{
 				var newTimeQuant = meanTimeQuantSum / timeQuantQueueMaxLenth;
-				
-				newTimeQuant = 
-					newTimeQuant < timeQuantMin ? 
-					timeQuantMin : 
-					newTimeQuant; 
+
+				newTimeQuant =
+					newTimeQuant < timeQuantMin ?
+					timeQuantMin :
+					newTimeQuant;
 
 				TimeQuantChanged?.Invoke(this, newTimeQuant);
 				lastMeanTimeQuantSum = meanTimeQuantSum;
 			}
 		}
 
-		private void CheckItemCount() 
+		private void CheckItemCount()
 		{
 			if (lastItemsCount != ItemsCount)
 			{
@@ -115,7 +128,7 @@
 
 		private void CheckTemperature()
 		{
-			if (ItemsCount == 0) 
+			if (ItemsCount == 0)
 			{
 				return;
 			}
@@ -130,17 +143,18 @@
 			}
 
 			if (
-				temperatureQueue.Count == temperatureQueueMaxLength && 
+				temperatureQueue.Count == temperatureQueueMaxLength &&
 				Math.Abs(lastMeanTemperatureSum - meanTemperatureSum) > temperatureQueueMaxLength * temperatureAccuracy)
 			{
+				meanTemperatureSum = meanTemperatureSum < 0 ? 0 : meanTemperatureSum;
 				TemperatureChanged?.Invoke(this, meanTemperatureSum / temperatureQueueMaxLength);
 				lastMeanTemperatureSum = meanTemperatureSum;
 			}
 		}
 
-		private void CheckPressure() 
+		private void CheckPressure()
 		{
-			if (Perimeter == 0) 
+			if (Perimeter == 0)
 			{
 				return;
 			}
@@ -155,9 +169,10 @@
 			}
 
 			if (
-				pressureQueue.Count == pressureQueueMaxLength && 
+				pressureQueue.Count == pressureQueueMaxLength &&
 				Math.Abs(lastMeanPressure - meanPressure) > pressureAccuracy)
 			{
+				meanPressure = meanPressure < 0 ? 0 : meanPressure;
 				PressureChanged?.Invoke(this, meanPressure);
 				lastMeanPressure = meanPressure;
 			}

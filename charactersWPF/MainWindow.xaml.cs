@@ -22,8 +22,9 @@ namespace charactersWPF
 		private readonly Button closeButton = new Button();
 		private readonly Button fullButton = new Button();
 		private readonly Button minimizeButton = new Button();
-		private readonly Button newButton = new Button();
 		private readonly Button startButton = new Button();
+		private readonly Button newButton = new Button();
+		private readonly Button manualButton = new Button();
 		private Label indicatorN;
 		private Label indicatorTemperature;
 		private Label indicatorPressure;
@@ -107,7 +108,7 @@ namespace charactersWPF
 			statistics.ItemsCountChanged += (o, e) => indicatorN?.UpdateIndicator(e);
 			statistics.TemperatureChanged += (o, e) => indicatorTemperature?.UpdateIndicator(e);
 			statistics.PressureChanged += (o, e) => indicatorPressure?.UpdateIndicator(e);
-			statistics.TimeQuantChanged += (o, e) => 
+			statistics.TimeQuantChanged += (o, e) =>
 			{
 				iterationTimer.Interval = e;
 				parameters.TimeQuantMseconds = e;
@@ -189,21 +190,35 @@ namespace charactersWPF
 			this.minimizeButton.HorizontalAlignment = HorizontalAlignment.Right;
 			this.minimizeButton.Content = "__";
 			this.minimizeButton.Width = 25;
-			this.minimizeButton.Click += (o, e) => this.WindowState = System.Windows.WindowState.Minimized;
+			this.minimizeButton.Click +=
+				(o, e) => this.WindowState = System.Windows.WindowState.Minimized;
 			DockPanel.SetDock(minimizeButton, Dock.Right);
 			this.controlDockPanel.Children.Add(minimizeButton);
 
 			uiMargin = new Thickness(0, 0, 10, 0);
 
+			this.manualButton.Background = backColor;
+			this.manualButton.Foreground = Brushes.White;
+			this.manualButton.Margin = uiMargin;
+			this.manualButton.BorderThickness = new Thickness(0);
+			this.manualButton.Content = "?";
+			this.manualButton.Width = 20;
+			this.controlDockPanel.Children.Add(manualButton);
+			this.manualButton.Click += (o, e) => 
+			{
+				System.Windows.MessageBox.Show("при нажатии кнопки \"New\" начнётся жинь круглых существ. круглое существо обладает характерами — маленькими цветными шариками внутри существа. два существа притягиваются, если их характеры похожи, или отталкиваются, если характеры различаются. близость характеров определяется близостью их цветов на цветовом круге: например, красный и оранжевый характеры близки, а зелёный и фиолетовый — разные.\r\nпритягиваясь своими характерами, существа движутся друг к другу, отталкиваясь, разлетаются. но даже притягивающиеся существа, сблизившись слишком сильно, разлетаются. все существа отскакивают от стенок.\r\nможно задавать стартовое число существ (\"N\"), число типовв характеров (\"Tp\") и максимальное число характеров существа (\"Ch\") даже когда запущена игра.\r\nсущества могут умирать от старости, из-за долгого взаимодействия со стеной или с отвратительным для него существом. если приятные друг другу существа долго близки, они могут родить новых существ. если существ больше, чем их стартовое число, вероятность смерти возрастает, а вероятность рождения растёт. и наоборот.\r\nсущества могут умирать, рождаться, собираться в группы, разлетаться, и это может длиться вечно.\r\nслева вверху на экране показаны N — текущее число существ, T — температура газа существ, P — давление на стенки, Q — время итерации в миллисекундах.\r\nзвук имеет значение.");
+			};
+
+			basicH = startButton.Height;
+
 			this.startButton.Background = backColor;
 			this.startButton.Foreground = Brushes.White;
 			this.startButton.Margin = uiMargin;
 			this.startButton.BorderThickness = new Thickness(0);
+			this.startButton.Height = basicH;
 			this.startButton.Content = "Start/Pause";
 			this.startButton.Click += StartContinue;
 			this.controlDockPanel.Children.Add(newButton);
-
-			basicH = startButton.Height;
 
 			this.newButton.Background = backColor;
 			this.newButton.Foreground = Brushes.White;
@@ -214,36 +229,43 @@ namespace charactersWPF
 			this.newButton.Click += New;
 			this.controlDockPanel.Children.Add(startButton);
 
-			var chTypesNumberLabel = MakeAndAddLabel("T", new());
+
+			var chTypesNumberLabel = MakeAndAddLabel("Tp", new());
 			chTypesNumberLabel.Margin = new Thickness();
 
 			var chTypesNumberInput = MakeAndAddInput(parameters.MaxNumberCharacterTypes, uiMargin);
-			chTypesNumberInput.ValueChanged += (o, e) => parameters.MaxNumberCharacterTypes = (int)chTypesNumberInput.Value;
+			chTypesNumberInput.ValueChanged +=
+				(o, e) => parameters.MaxNumberCharacterTypes = (int)chTypesNumberInput.Value;
+			chTypesNumberInput.Minimum = 1;
+			chTypesNumberInput.Maximum = 24;
 
 			var chNumberLabel = MakeAndAddLabel("Ch", new());
 
 			var chNumberInput = MakeAndAddInput(parameters.MaxNumberCharacters, uiMargin);
-			chNumberInput.ValueChanged += (o, e) => parameters.MaxNumberCharacters = (int)chNumberInput.Value;
+			chNumberInput.ValueChanged +=
+				(o, e) => parameters.MaxNumberCharacters = (int)chNumberInput.Value;
+			chNumberInput.Minimum = 1;
+			chNumberInput.Maximum = 24;
 
 			var personsNumberLabel = MakeAndAddLabel("N", new());
 
-			var personsNumberInput = MakeAndAddInput(parameters.PersonsCount, uiMargin);
-			personsNumberInput.ValueChanged += (o, e) =>
+			var personsCountInput = MakeAndAddInput(parameters.PersonsCount, uiMargin);
+			personsCountInput.Minimum = 2;
+			personsCountInput.Maximum = 100;
+			personsCountInput.ValueChanged += (o, e) =>
 			{
-				parameters.PersonsCount = (int)personsNumberInput.Value;
+				parameters.PersonsCount = (int)personsCountInput.Value;
 				canAutoChangeGdelta = true;
 			};
 
 			var gLabel = MakeAndAddLabel("G", new());
 
-			var gInput = MakeAndAddInput(parameters.G, uiMargin);
-			gInput.ValueChanged += (o, e) => parameters.G = (double)gInput.Value;
+			var gInput = MakeAndAddInput(parameters.G, uiMargin, "G");
+			gInput.Minimum = 1;
 
 			var gDeltaLabel = MakeAndAddLabel("dG", new());
 
 			var gDeltaInput = MakeAndAddInput(parameters.Gdelta, uiMargin, "Gdelta");
-			gDeltaInput.Maximum = parameters.G - 0.1;
-			gDeltaInput.Minimum = -parameters.G + 0.1;
 			gDeltaInput.ValueChanged += (o, e) =>
 			{
 				gDeltaInput.Text = $"{gDeltaInput.Value:F2}";
@@ -254,12 +276,16 @@ namespace charactersWPF
 			var elasticityLabel = MakeAndAddLabel("E", new());
 
 			var elasticityInput = MakeAndAddInput(parameters.Elasticity, uiMargin);
-			elasticityInput.ValueChanged += (o, e) => parameters.Elasticity = (double)elasticityInput.Value;
+			elasticityInput.ValueChanged +=
+				(o, e) => parameters.Elasticity = (double)elasticityInput.Value;
+			elasticityInput.Minimum = 0;
 
 			var viscosityLabel = MakeAndAddLabel("V", new());
 
 			var viscosityInput = MakeAndAddInput(parameters.Viscosity, uiMargin);
-			viscosityInput.ValueChanged += (o, e) => parameters.Viscosity = (double)viscosityInput.Value;
+			viscosityInput.ValueChanged +=
+				(o, e) => parameters.Viscosity = (double)viscosityInput.Value;
+			viscosityInput.Minimum = 0;
 
 			var emptyLabel = MakeAndAddLabel("", new());
 
@@ -272,18 +298,32 @@ namespace charactersWPF
 
 			Canvas.SetLeft(indicatorsCanvas, 0);
 			Canvas.SetTop(indicatorsCanvas, 0);
-			Canvas.SetZIndex(indicatorsCanvas, 1);
+			Panel.SetZIndex(indicatorsCanvas, 1);
 			this.indicatorsCanvas.Orientation = Orientation.Vertical;
 			this.indicatorsCanvas.Background = Brushes.Transparent;
 
-			this.indicatorN = MakeIndicator("N");
-			this.indicatorTemperature = MakeIndicator("T");
-			this.indicatorPressure = MakeIndicator("P");
-			this.indicatorTimeQuant = MakeIndicator("Q");
+			this.indicatorN = MakeAndAddIndicator("N");
+			this.indicatorTemperature = MakeAndAddIndicator("T");
+			this.indicatorPressure = MakeAndAddIndicator("P");
+			this.indicatorTimeQuant = MakeAndAddIndicator("Q");
 
 			this.Width = parameters.MaxWidth;
 			this.Height = parameters.MaxHeight;
 			this.Closed += (o, e) => Stop();
+
+			#region hide
+			if (true)
+			{
+				gLabel.Visibility = Visibility.Collapsed;
+				gInput.Visibility = Visibility.Collapsed;
+				gDeltaLabel.Visibility = Visibility.Collapsed;
+				gDeltaInput.Visibility = Visibility.Collapsed;
+				elasticityLabel.Visibility = Visibility.Collapsed;
+				elasticityInput.Visibility = Visibility.Collapsed;
+				viscosityLabel.Visibility = Visibility.Collapsed;
+				viscosityInput.Visibility = Visibility.Collapsed;
+			}
+			#endregion
 		}
 
 		private Label MakeAndAddLabel(string text, Thickness uiMargin)
@@ -318,6 +358,9 @@ namespace charactersWPF
 				Value = startValue,
 				DataContext = parameters,
 				AllowSpin = true,
+				AllowTextInput = false,
+				AllowInputSpecialValues = AllowedSpecialValues.None,
+				Focusable = false,
 			};
 
 			if (!string.IsNullOrEmpty(ValueName))
@@ -331,7 +374,7 @@ namespace charactersWPF
 			return input;
 		}
 
-		private Label MakeIndicator(string prefix)
+		private Label MakeAndAddIndicator(string prefix)
 		{
 			var indicator = new Label()
 			{
@@ -414,7 +457,7 @@ namespace charactersWPF
 
 		private void OnIteration(object _, ElapsedEventArgs __)
 		{
-			if (canIterate) 
+			if (canIterate)
 			{
 				canIterate = false;
 				var currentDuration = Iterate();
@@ -456,12 +499,6 @@ namespace charactersWPF
 			//зарождение новых
 			while (newBorns.TryTake(out Point point))
 			{
-				//if (persons.Count > 100)
-				//{
-				//	newBorns.Clear();
-				//	return;
-				//}
-
 				double count = persons.Count + newBorns.Count;
 				double p = count / (parameters.PersonsCount + count);
 
@@ -479,8 +516,9 @@ namespace charactersWPF
 
 			if (canAutoChangeGdelta)
 			{
-				var newCountDiff = (parameters.PersonsCount - persons.Count) / (double)parameters.PersonsCount;
-				parameters.Gdelta = newCountDiff * parameters.G;
+				var newCountDiff = (parameters.PersonsCount - persons.Count) / ((double)parameters.PersonsCount + persons.Count);
+				var newGdelta = newCountDiff * parameters.G;
+				parameters.Gdelta = newGdelta;
 			}
 
 			sw.Stop();
@@ -497,9 +535,13 @@ namespace charactersWPF
 			}
 
 			personsCanvas.Dispatcher.Invoke(() => personsCanvas.Children.Add(person.MainCircleCanvas));
-			person.Strike += (o, e) => soundPlayers[person.ChromeStep].Play();
-			person.Kill += (o, e) =>
-				personsCanvas.Dispatcher.Invoke(() => personsCanvas.Children.Remove(person.MainCircleCanvas));
+
+			person.Strike +=
+				(o, e) => soundPlayers[person.ChromeStep].Play();
+
+			person.Kill +=
+				(o, e) => personsCanvas.Dispatcher.Invoke(
+					() => personsCanvas.Children.Remove(person.MainCircleCanvas));
 
 			return person;
 		}

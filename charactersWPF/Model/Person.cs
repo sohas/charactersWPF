@@ -32,7 +32,6 @@ namespace Characters.Model
 		private double lastNegImpact;
 		private double lastWallImpact;
 		private int wallStrikes;
-		private int personsStrikes;
 
 		private DateTime birthTime;
 		private readonly double lifeTimeSeconds;
@@ -54,10 +53,7 @@ namespace Characters.Model
 		#region public properties
 		public double X_LeftOnCanvas
 		{
-			get
-			{
-				return x_LeftOnCanvas;
-			}
+			get => x_LeftOnCanvas;
 			set
 			{
 				if (x_LeftOnCanvas != value)
@@ -70,10 +66,7 @@ namespace Characters.Model
 
 		public double Y_TopOnCanvas
 		{
-			get
-			{
-				return y_TopOnCanvas;
-			}
+			get => y_TopOnCanvas;
 			set
 			{
 				if (y_TopOnCanvas != value)
@@ -346,6 +339,7 @@ namespace Characters.Model
 			var res = GetColor(chromeAngle);
 			var baseK = 1 / 2.0;
 			res.A = (byte)(res.A * chromeR * (1 - (1 - baseK) / Parameters.MaxNumberCharacters));
+
 			return res;
 		}
 
@@ -411,6 +405,7 @@ namespace Characters.Model
 				Duration = TimeSpan.FromMilliseconds(Parameters.TimeQuantMseconds * 360 / (basicRotateAngle == 0 ? 1 : basicRotateAngle)),
 				RepeatBehavior = RepeatBehavior.Forever,
 			};
+
 			mainCircleCanvas.RenderTransform.BeginAnimation(RotateTransform.AngleProperty, rotateAnimation);
 		}
 		#endregion
@@ -421,7 +416,6 @@ namespace Characters.Model
 			double force = 0;
 			curNegImpact = 0;
 			curPosImpact = 0;
-			var currentPersonsStrike = 0;
 
 			var distanceX = second.X_LeftOnCanvas - this.X_LeftOnCanvas;
 			var distanceY = second.Y_TopOnCanvas - this.Y_TopOnCanvas;
@@ -450,7 +444,6 @@ namespace Characters.Model
 				}
 
 				force = -Parameters.Elasticity;
-				currentPersonsStrike++;
 			}
 			else
 			{
@@ -464,7 +457,6 @@ namespace Characters.Model
 
 			forceX += (distanceX / distance) * force;
 			forceY += (distanceY / distance) * force;
-			personsStrikes = currentPersonsStrike;
 		}
 
 		private void SetNewVelocity()
@@ -579,20 +571,14 @@ namespace Characters.Model
 		#endregion
 
 		#region on events
-		private void NotifyPropertyChanged(string v)
-		{
+		private void NotifyPropertyChanged(string v) =>
 			PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(v));
-		}
 
-		private void OnStrike()
-		{
+		private void OnStrike() =>
 			Strike?.Invoke(this, EventArgs.Empty);
-		}
 
-		private void OnKill()
-		{
+		private void OnKill() =>
 			Kill?.Invoke(this, EventArgs.Empty);
-		}
 		#endregion
 	}
 }

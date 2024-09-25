@@ -11,6 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="manual.txt" />
     <None Remove="Notes\01MC.mp3" />
     <None Remove="Notes\01_XsC.mp3" />
     <None Remove="Notes\02MCs.mp3" />
@@ -63,6 +64,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="manual.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Notes\01MC.mp3">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

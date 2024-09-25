@@ -8,6 +8,7 @@ using charactersWPF.Model;
 using System.Collections.Concurrent;
 using System.Timers;
 using System.Diagnostics;
+using System.IO;
 
 namespace charactersWPF
 {
@@ -19,12 +20,12 @@ namespace charactersWPF
 		private readonly StackPanel indicatorsCanvas = new();
 		private readonly Canvas personsCanvas = new();
 		private readonly SolidColorBrush personsCanvasBackBrush = Brushes.Black;
-		private readonly Button closeButton = new Button();
-		private readonly Button fullButton = new Button();
-		private readonly Button minimizeButton = new Button();
-		private readonly Button startButton = new Button();
-		private readonly Button newButton = new Button();
-		private readonly Button manualButton = new Button();
+		private Button closeButton;
+		private Button fullButton;
+		private Button minimizeButton;
+		private Button startButton;
+		private Button newButton;
+		private Button manualButton;
 		private Label indicatorN;
 		private Label indicatorTemperature;
 		private Label indicatorPressure;
@@ -46,15 +47,17 @@ namespace charactersWPF
 		private int lastPersonsCount = 0;
 		private Statistics statistics;
 		private bool canIterate = true;
+
+		private string info = null;
 		#endregion
 
 		public MainWindow()
 		{
 			var size = new Size(600, 600);
 			var radius = 20;
-			var maxNumberCharacterTypes = 24;
-			var maxNumberCharacters = 24;
-			var personsCount = 20;
+			var maxNumberCharacterTypes = 12;
+			var maxNumberCharacters = 12;
+			var personsCount = 30;
 			var g = 5;
 			var gDelta = 0.0;
 			var elasticity = 3;
@@ -119,8 +122,6 @@ namespace charactersWPF
 		#region design
 		private void MakeDesign()
 		{
-			var basicStyle = WindowStyle.SingleBorderWindow;
-			var noneStyle = WindowStyle.None;
 			backColor = SystemColors.WindowFrameBrush;
 
 			this.BorderThickness = new Thickness(0);
@@ -142,93 +143,47 @@ namespace charactersWPF
 			Grid.SetColumn(controlDockPanel, 0);
 			Grid.SetRow(controlDockPanel, 0);
 
-			this.closeButton.Background = backColor;
-			this.closeButton.Foreground = Brushes.White;
-			this.closeButton.Visibility = Visibility.Collapsed;
-			this.closeButton.Margin = new(0);
-			this.closeButton.BorderThickness = new Thickness(0);
-			this.closeButton.HorizontalAlignment = HorizontalAlignment.Right;
-			this.closeButton.Content = " X ";
+			this.closeButton = MakeAndAddButton(" X ", Dock.Right);
 			this.closeButton.Width = 25;
-			this.closeButton.Click += (o, e) => Close();
-			this.controlDockPanel.Children.Add(closeButton);
-			DockPanel.SetDock(closeButton, Dock.Right);
+			this.closeButton.HorizontalAlignment = HorizontalAlignment.Right;
+			this.closeButton.Visibility = Visibility.Collapsed;
+			this.closeButton.Click += 
+				(o, e) => Close();
 
-			this.fullButton.Background = backColor;
-			this.fullButton.Foreground = Brushes.White;
-			this.fullButton.Margin = new(0);
-			this.fullButton.BorderThickness = new Thickness(0);
-			this.fullButton.HorizontalAlignment = HorizontalAlignment.Right;
-			this.fullButton.Content = " O ";
+			this.fullButton = MakeAndAddButton(" O ", Dock.Right);
 			this.fullButton.Width = 25;
-			this.fullButton.Click += (o, e) =>
-			{
-				if (this.WindowStyle == noneStyle)
-				{
-					this.WindowState = currentState;
-					this.WindowStyle = basicStyle;
-					this.closeButton.Visibility = Visibility.Collapsed;
-					this.minimizeButton.Visibility = Visibility.Collapsed;
-				}
-				else
-				{
-					currentState = this.WindowState;
-					this.WindowState = System.Windows.WindowState.Maximized;
-					this.WindowStyle = noneStyle;
-					this.closeButton.Visibility = Visibility.Visible;
-					this.minimizeButton.Visibility = Visibility.Visible;
-				}
-			};
-			DockPanel.SetDock(fullButton, Dock.Right);
-			this.controlDockPanel.Children.Add(fullButton);
+			this.fullButton.HorizontalAlignment = HorizontalAlignment.Right;
+			this.fullButton.Click += FullOrMinimize;
 
-			this.minimizeButton.Background = backColor;
-			this.minimizeButton.Foreground = Brushes.White;
-			this.minimizeButton.Visibility = Visibility.Collapsed;
-			this.minimizeButton.Margin = new(0);
-			this.minimizeButton.BorderThickness = new Thickness(0);
-			this.minimizeButton.HorizontalAlignment = HorizontalAlignment.Right;
-			this.minimizeButton.Content = "__";
+			this.minimizeButton = MakeAndAddButton("__", Dock.Right);
 			this.minimizeButton.Width = 25;
+			this.minimizeButton.HorizontalAlignment = HorizontalAlignment.Right;
+			this.minimizeButton.Visibility = Visibility.Collapsed;
 			this.minimizeButton.Click +=
 				(o, e) => this.WindowState = System.Windows.WindowState.Minimized;
-			DockPanel.SetDock(minimizeButton, Dock.Right);
-			this.controlDockPanel.Children.Add(minimizeButton);
 
 			uiMargin = new Thickness(0, 0, 10, 0);
 
-			this.manualButton.Background = backColor;
-			this.manualButton.Foreground = Brushes.White;
+			this.manualButton = MakeAndAddButton("?");
 			this.manualButton.Margin = uiMargin;
-			this.manualButton.BorderThickness = new Thickness(0);
-			this.manualButton.Content = "?";
 			this.manualButton.Width = 20;
-			this.controlDockPanel.Children.Add(manualButton);
-			this.manualButton.Click += (o, e) => 
+			this.manualButton.Click += async (o, e) =>
 			{
-				System.Windows.MessageBox.Show("при нажатии кнопки \"New\" начнётся жинь круглых существ. круглое существо обладает характерами — маленькими цветными шариками внутри существа. два существа притягиваются, если их характеры похожи, или отталкиваются, если характеры различаются. близость характеров определяется близостью их цветов на цветовом круге: например, красный и оранжевый характеры близки, а зелёный и фиолетовый — разные.\r\nпритягиваясь своими характерами, существа движутся друг к другу, отталкиваясь, разлетаются. но даже притягивающиеся существа, сблизившись слишком сильно, разлетаются. все существа отскакивают от стенок.\r\nможно задавать стартовое число существ (\"N\"), число типовв характеров (\"Tp\") и максимальное число характеров существа (\"Ch\") даже когда запущена игра.\r\nсущества могут умирать от старости, из-за долгого взаимодействия со стеной или с отвратительным для него существом. если приятные друг другу существа долго близки, они могут родить новых существ. если существ больше, чем их стартовое число, вероятность смерти возрастает, а вероятность рождения растёт. и наоборот.\r\nсущества могут умирать, рождаться, собираться в группы, разлетаться, и это может длиться вечно.\r\nслева вверху на экране показаны N — текущее число существ, T — температура газа существ, P — давление на стенки, Q — время итерации в миллисекундах.\r\nзвук имеет значение.");
+				info ??= await File.ReadAllTextAsync("manual.txt");
+				System.Windows.MessageBox.Show(info, "Что тут происходит?");
 			};
 
-			basicH = startButton.Height;
+			basicH = closeButton.Height;
 
-			this.startButton.Background = backColor;
-			this.startButton.Foreground = Brushes.White;
-			this.startButton.Margin = uiMargin;
-			this.startButton.BorderThickness = new Thickness(0);
-			this.startButton.Height = basicH;
-			this.startButton.Content = "Start/Pause";
-			this.startButton.Click += StartContinue;
-			this.controlDockPanel.Children.Add(newButton);
-
-			this.newButton.Background = backColor;
-			this.newButton.Foreground = Brushes.White;
+			this.newButton = MakeAndAddButton("New");
 			this.newButton.Margin = uiMargin;
-			this.newButton.BorderThickness = new Thickness(0);
 			this.newButton.Height = basicH;
-			this.newButton.Content = "New";
 			this.newButton.Click += New;
-			this.controlDockPanel.Children.Add(startButton);
 
+			this.startButton = MakeAndAddButton("Start/Pause");
+			this.startButton.Margin = uiMargin;
+			this.startButton.Height = basicH;
+			this.startButton.Click += StartContinue;
 
 			var chTypesNumberLabel = MakeAndAddLabel("Tp", new());
 			chTypesNumberLabel.Margin = new Thickness();
@@ -326,6 +281,27 @@ namespace charactersWPF
 			#endregion
 		}
 
+		private Button MakeAndAddButton(string name, Dock? dock = null) 
+		{
+			var button = new Button() 
+			{
+				Background = backColor,
+				Foreground = Brushes.White,
+				Margin = new(0),
+				BorderThickness = new Thickness(0),
+				Content = name,
+			};
+
+			this.controlDockPanel.Children.Add(button);
+
+			if (dock is Dock d) 
+			{
+				DockPanel.SetDock(button, d);
+			}
+
+			return button;
+		}
+
 		private Label MakeAndAddLabel(string text, Thickness uiMargin)
 		{
 			var label = new Label()
@@ -388,6 +364,25 @@ namespace charactersWPF
 
 			indicatorsCanvas.Children.Add(indicator);
 			return indicator;
+		}
+
+		private void FullOrMinimize(object _, RoutedEventArgs __)
+		{
+			if (this.WindowStyle == WindowStyle.None)
+			{
+				this.WindowState = currentState;
+				this.WindowStyle = WindowStyle.SingleBorderWindow;
+				this.closeButton.Visibility = Visibility.Collapsed;
+				this.minimizeButton.Visibility = Visibility.Collapsed;
+			}
+			else
+			{
+				currentState = this.WindowState;
+				this.WindowState = System.Windows.WindowState.Maximized;
+				this.WindowStyle = WindowStyle.None;
+				this.closeButton.Visibility = Visibility.Visible;
+				this.minimizeButton.Visibility = Visibility.Visible;
+			}
 		}
 
 		private void ResizePersonsPanel(object _, SizeChangedEventArgs e)

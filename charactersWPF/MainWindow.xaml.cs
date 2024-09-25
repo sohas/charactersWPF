@@ -9,6 +9,7 @@ using System.Collections.Concurrent;
 using System.Timers;
 using System.Diagnostics;
 using System.IO;
+using System.Windows.Media.Imaging;
 
 namespace charactersWPF
 {
@@ -129,6 +130,7 @@ namespace charactersWPF
 			this.Icon = null;
 			this.Title = "Characters";
 			this.Margin = new();
+			this.Icon = BitmapFrame.Create(new Uri("ch_icon.jpg", UriKind.RelativeOrAbsolute));
 
 			this.mainGrid.RowDefinitions.Add(new RowDefinition() { Height = new GridLength(100, GridUnitType.Auto) });
 			this.mainGrid.RowDefinitions.Add(new RowDefinition() { Height = new GridLength(100, GridUnitType.Star) });

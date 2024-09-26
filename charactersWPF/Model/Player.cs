@@ -1,5 +1,4 @@
 ﻿using NAudio.Wave;
-using System.ComponentModel;
 using System.Windows;
 
 namespace charactersWPF.Model
@@ -38,7 +37,7 @@ namespace charactersWPF.Model
 			{
 				try
 				{
-					wout.Volume = Volume;
+					wout.Volume = volume;
 					wout.Play();
 				}
 				catch { }

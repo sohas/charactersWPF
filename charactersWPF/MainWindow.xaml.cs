@@ -264,6 +264,8 @@ namespace charactersWPF
 			this.indicatorPressure = MakeAndAddIndicator("P");
 			this.indicatorTimeQuant = MakeAndAddIndicator("Q");
 
+			MakeAndAddVolumeSlider();
+
 			this.Width = parameters.MaxWidth;
 			this.Height = parameters.MaxHeight;
 			this.Closed += (o, e) => Stop();
@@ -323,7 +325,7 @@ namespace charactersWPF
 			return label;
 		}
 
-		private DoubleUpDown MakeAndAddInput(double startValue, Thickness uiMargin, string ValueName = null)
+		private DoubleUpDown MakeAndAddInput(double startValue, Thickness uiMargin, string ValueName = null, bool addToControlDockPanel = true)
 		{
 			var input = new DoubleUpDown()
 			{
@@ -346,8 +348,11 @@ namespace charactersWPF
 				input.SetBinding(DoubleUpDown.ValueProperty, ValueName);
 			}
 
-			DockPanel.SetDock(input, Dock.Left);
-			this.controlDockPanel.Children.Add(input);
+			if (addToControlDockPanel) 
+			{
+				DockPanel.SetDock(input, Dock.Left);
+				this.controlDockPanel.Children.Add(input);
+			}
 
 			return input;
 		}
@@ -366,6 +371,38 @@ namespace charactersWPF
 
 			indicatorsCanvas.Children.Add(indicator);
 			return indicator;
+		}
+
+		private Slider MakeAndAddVolumeSlider() 
+		{
+			var volumeSlider = new Slider();
+			volumeSlider.Orientation = Orientation.Vertical;
+			volumeSlider.Height = 100;
+			volumeSlider.Opacity = 0.2;
+			volumeSlider.Margin = new Thickness(0, 10, 0, 0);
+			volumeSlider.Value = Math.Log10(Player.Volume + 0.1) + 1;
+			volumeSlider.Minimum = 0;
+			volumeSlider.Maximum = 1;
+			indicatorsCanvas.Children.Add(volumeSlider);
+
+			volumeSlider.ValueChanged += (o, e) =>
+			{
+				Player.Volume = (float)Math.Pow(10, e.NewValue) / 10 - 0.1f;
+			};
+			volumeSlider.MouseWheel += (o, e) =>
+			{
+				volumeSlider.Value += e.Delta / 5000.0;
+			};
+			volumeSlider.MouseLeave += (o, e) =>
+			{
+				volumeSlider.Opacity = 0.1;
+			};
+			volumeSlider.MouseEnter += (o, e) =>
+			{
+				volumeSlider.Opacity = 0.5;
+			};
+
+			return volumeSlider;
 		}
 
 		private void FullOrMinimize(object _, RoutedEventArgs __)

@@ -1,12 +1,26 @@
 ﻿using NAudio.Wave;
+using System.ComponentModel;
 using System.Windows;
 
 namespace charactersWPF.Model
 {
-	internal class Player
+	internal class Player 
 	{
+		private static float volume = 0.1f;
 		private WaveOut wout;
 		private Mp3FileReader reader;
+
+		public static float Volume 
+		{ 
+			get => volume;
+			set 
+			{
+				if (volume != value && value >= 0 && value <= 1) 
+				{
+					volume = value;
+				}
+			}
+		}
 
 		public Player(string fileName)
 		{
@@ -24,6 +38,7 @@ namespace charactersWPF.Model
 			{
 				try
 				{
+					wout.Volume = Volume;
 					wout.Play();
 				}
 				catch { }

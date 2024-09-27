@@ -10,6 +10,7 @@ using System.Timers;
 using System.Diagnostics;
 using System.IO;
 using System.Windows.Media.Imaging;
+using System.Windows.Input;
 
 namespace charactersWPF
 {
@@ -191,24 +192,27 @@ namespace charactersWPF
 			chTypesNumberLabel.Margin = new Thickness();
 
 			var chTypesNumberInput = MakeAndAddInput(parameters.MaxNumberCharacterTypes, uiMargin);
-			chTypesNumberInput.ValueChanged +=
-				(o, e) => parameters.MaxNumberCharacterTypes = (int)chTypesNumberInput.Value;
 			chTypesNumberInput.Minimum = 1;
 			chTypesNumberInput.Maximum = 24;
+			chTypesNumberInput.ValueChanged +=
+				(o, e) => parameters.MaxNumberCharacterTypes = (int)chTypesNumberInput.Value;
+			chTypesNumberInput.MouseWheel += UpDownMouseWheel;
 
 			var chNumberLabel = MakeAndAddLabel("Ch", new());
 
 			var chNumberInput = MakeAndAddInput(parameters.MaxNumberCharacters, uiMargin);
-			chNumberInput.ValueChanged +=
-				(o, e) => parameters.MaxNumberCharacters = (int)chNumberInput.Value;
 			chNumberInput.Minimum = 1;
 			chNumberInput.Maximum = 24;
+			chNumberInput.ValueChanged +=
+				(o, e) => parameters.MaxNumberCharacters = (int)chNumberInput.Value;
+			chNumberInput.MouseWheel += UpDownMouseWheel;
 
 			var personsNumberLabel = MakeAndAddLabel("N", new());
 
 			var personsCountInput = MakeAndAddInput(parameters.PersonsCount, uiMargin);
 			personsCountInput.Minimum = 2;
 			personsCountInput.Maximum = 100;
+			personsCountInput.MouseWheel += UpDownMouseWheel;
 			personsCountInput.ValueChanged += (o, e) =>
 			{
 				parameters.PersonsCount = (int)personsCountInput.Value;
@@ -355,6 +359,32 @@ namespace charactersWPF
 			}
 
 			return input;
+		}
+
+		private void UpDownMouseWheel(object sender, MouseWheelEventArgs e) 
+		{
+			if (sender is not DoubleUpDown input) 
+			{
+				return;
+			}
+
+			var val = input.Value;
+			var del = e.Delta / 120;
+			var max = input.Maximum;
+			var min = input.Minimum;
+
+			if (val + del > max)
+			{
+				input.Value = max;
+			}
+			else if (val + del < min)
+			{
+				input.Value = min;
+			}
+			else
+			{
+				input.Value = val + del;
+			}
 		}
 
 		private Label MakeAndAddIndicator(string prefix)

@@ -9,6 +9,9 @@ namespace charactersWPF.Model
 		private WaveOut wout;
 		private Mp3FileReader reader;
 
+		/// <summary>
+		/// значение громкости для всех плееров
+		/// </summary>
 		public static float Volume 
 		{ 
 			get => volume;
@@ -31,6 +34,9 @@ namespace charactersWPF.Model
 			wout.PlaybackStopped += (o, e) => reader.Position = 0;
 		}
 
+		/// <summary>
+		/// включение плеера
+		/// </summary>
 		public void Play()
 		{
 			if (wout.PlaybackState == PlaybackState.Stopped)
@@ -44,6 +50,9 @@ namespace charactersWPF.Model
 			}
 		}
 
+		/// <summary>
+		/// остановка плеера
+		/// </summary>
 		public void Stop()
 		{
 			wout.Stop();

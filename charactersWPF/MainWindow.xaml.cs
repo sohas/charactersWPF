@@ -110,7 +110,7 @@ namespace charactersWPF
 		private void SetupStatistics()
 		{
 			statistics = new Statistics(parameters.TimeQuantMseconds);
-			statistics.ItemsCountChanged += (o, e) => indicatorN?.UpdateIndicator(e);
+			statistics.ItemsCountChanged += (o, e) => indicatorN?.UpdateIndicator($"{e}/{parameters.PersonsCount}");
 			statistics.TemperatureChanged += (o, e) => indicatorTemperature?.UpdateIndicator(e);
 			statistics.PressureChanged += (o, e) => indicatorPressure?.UpdateIndicator(e);
 			statistics.TimeQuantChanged += (o, e) =>
@@ -216,6 +216,7 @@ namespace charactersWPF
 			personsCountInput.ValueChanged += (o, e) =>
 			{
 				parameters.PersonsCount = (int)personsCountInput.Value;
+				indicatorN?.UpdateIndicator($"{persons.Count}/{parameters.PersonsCount}");
 				canAutoChangeGdelta = true;
 			};
 
@@ -256,6 +257,26 @@ namespace charactersWPF
 
 			this.personsCanvas.Background = personsCanvasBackBrush;
 			this.personsCanvas.SizeChanged += ResizePersonsPanel;
+			this.personsCanvas.MouseMove += (o, e) =>
+			{
+				if (isStarted && controlDockPanel.Visibility == Visibility.Collapsed)
+				{
+					var y = Mouse.GetPosition(controlDockPanel).Y;
+
+					if (y >= 0 && y <= basicH)
+					{
+						controlDockPanel.Visibility = Visibility.Visible;
+					}
+				}
+			};
+
+			this.controlDockPanel.MouseLeave += (o, e) =>
+			{
+				if (isStarted && controlDockPanel.Visibility == Visibility.Visible)
+				{
+					controlDockPanel.Visibility = Visibility.Collapsed;
+				}
+			};
 
 			Canvas.SetLeft(indicatorsCanvas, 0);
 			Canvas.SetTop(indicatorsCanvas, 0);
@@ -273,6 +294,7 @@ namespace charactersWPF
 			this.Width = parameters.MaxWidth;
 			this.Height = parameters.MaxHeight;
 			this.Closed += (o, e) => Stop();
+			this.Loaded += (o, e) => basicH = controlDockPanel.ActualHeight;
 
 			#region hide
 			if (true)
@@ -329,7 +351,8 @@ namespace charactersWPF
 			return label;
 		}
 
-		private DoubleUpDown MakeAndAddInput(double startValue, Thickness uiMargin, string ValueName = null, bool addToControlDockPanel = true)
+		private DoubleUpDown MakeAndAddInput(
+			double startValue, Thickness uiMargin, string ValueName = null, bool addToControlDockPanel = true)
 		{
 			var input = new DoubleUpDown()
 			{
@@ -475,6 +498,7 @@ namespace charactersWPF
 			{
 				iterationTimer.Stop();
 				isStarted = false;
+				controlDockPanel.Visibility = Visibility.Visible;
 			}
 		}
 
@@ -484,6 +508,7 @@ namespace charactersWPF
 			{
 				iterationTimer.Start();
 				isStarted = true;
+				controlDockPanel.Visibility = Visibility.Collapsed;
 			}
 		}
 
@@ -517,6 +542,7 @@ namespace charactersWPF
 
 			iterationTimer.Start();
 			isStarted = true;
+			controlDockPanel.Visibility = Visibility.Collapsed;
 		}
 
 		private void OnIteration(object _, ElapsedEventArgs __)

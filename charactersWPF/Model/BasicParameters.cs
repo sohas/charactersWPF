@@ -9,38 +9,73 @@ namespace Characters.Model
 		private double gDelta;
 		private const double timeQuantMilliseconsBase = 20;
 
+		/// <summary>
+		/// размер панели ширина
+		/// </summary>
 		public double MaxWidth
 		{
 			get; set;
 		}
+
+		/// <summary>
+		/// размер панели высота
+		/// </summary>
 		public double MaxHeight
 		{
 			get; set;
 		}
+
+		/// <summary>
+		/// радиус существа
+		/// </summary>
 		public double Radius
 		{
 			get; private set;
 		}
+
+		/// <summary>
+		/// максимальное число разных видов характеров
+		/// </summary>
 		public int MaxNumberCharacterTypes
 		{
 			get; set;
 		}
+
+		/// <summary>
+		/// максимальное число характеров в существе
+		/// </summary>
 		public int MaxNumberCharacters
 		{
 			get; set;
 		}
+
+		/// <summary>
+		/// задаваемое число существ
+		/// </summary>
 		public int PersonsCount
 		{
 			get; set;
 		}
+
+		/// <summary>
+		/// параметр взаимодействия со стеной 
+		/// </summary>
 		public double Elasticity
 		{
 			get; set;
 		}
+
+		/// <summary>
+		/// параметр затухания скорости
+		/// </summary>
 		public double Viscosity
 		{
 			get; set;
 		}
+
+		/// <summary>
+		/// средний коэффициент взаимодействия
+		/// </summary>
 		public double G
 		{
 			get => g;
@@ -57,6 +92,9 @@ namespace Characters.Model
 			}
 		}
 
+		/// <summary>
+		/// отклонение ("+" увеличивает притяжение и уменьшает отталкивание, "-" -- наоборот)
+		/// </summary>
 		public double Gdelta
 		{
 			get => gDelta;
@@ -71,12 +109,36 @@ namespace Characters.Model
 			}
 		}
 
+		/// <summary>
+		/// стартовое время отведённое на итерацию
+		/// </summary>
 		public double TimeQuantMseconds { get; set; } = 20;
+
+		/// <summary>
+		/// коэффициент для согласования размерности
+		/// </summary>
 		public double Dimention => 100.0;
-		public int BurnDethThreshold => 1;
+
+		/// <summary>
+		/// порог для рождения и смерти
+		/// </summary>
+		public int BirthDethThreshold => 1;
+
+		/// <summary>
+		/// время умирания
+		/// </summary>
 		public int DeathIntervalMseconds => 300;
+
+		/// <summary>
+		/// время "полураспада"
+		/// </summary>
 		public double LifeTimeSeconds => 100;
-		public double ForceCorrection => 1.0 + (MaxNumberCharacters - 1) * 0.1;//получено эмпирически, как средний модуль базовой силы в завис от N
+
+		/// <summary>
+		/// параметр коррекции сил притяжения/отталкивания в зависимости от числа существ
+		/// получено эмпирически, как средний модуль базовой силы в завис от N
+		/// </summary>
+		public double ForceCorrection => 1.0 + (MaxNumberCharacters - 1) * 0.1;
 
 		public BasicParameters(
 		    Size size, int radius, int maxNumberCharacterTypes, int maxNumberCharacters, int personsCount,
@@ -102,6 +164,9 @@ namespace Characters.Model
 
 		public event PropertyChangedEventHandler? PropertyChanged;
 
+		/// <summary>
+		/// возврат времени итерации к базовому
+		/// </summary>
 		public void ResetTimeQuant() =>
 			TimeQuantMseconds = timeQuantMilliseconsBase;
 

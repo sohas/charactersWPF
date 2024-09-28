@@ -51,6 +51,9 @@ namespace Characters.Model
 		#endregion
 
 		#region public properties
+		/// <summary>
+		/// абсцисса существа на панели
+		/// </summary>
 		public double X_LeftOnCanvas
 		{
 			get => x_LeftOnCanvas;
@@ -64,6 +67,9 @@ namespace Characters.Model
 			}
 		}
 
+		/// <summary>
+		/// ордината существа на панели
+		/// </summary>
 		public double Y_TopOnCanvas
 		{
 			get => y_TopOnCanvas;
@@ -77,12 +83,27 @@ namespace Characters.Model
 			}
 		}
 
+		/// <summary>
+		/// номер тона в хроматической гамме в зависимости от среднего цвета
+		/// </summary>
 		public int ChromeStep => chromeStep;
+
+		/// <summary>
+		/// панель основного круга
+		/// </summary>
 		public Canvas MainCircleCanvas => mainCircleCanvas;
 		#endregion
 
+		/// <summary>
+		/// событие удара
+		/// </summary>
 		public event EventHandler Strike;
+		
+		/// <summary>
+		/// событие смерти
+		/// </summary>
 		public event EventHandler Kill;
+
 		public event PropertyChangedEventHandler? PropertyChanged;
 
 		public Person(BasicParameters parameters)
@@ -113,6 +134,15 @@ namespace Characters.Model
 		}
 
 		#region pubic methods
+		/// <summary>
+		/// итерация динамики движения существ
+		/// </summary>
+		/// <param name="persons">коллекция всех существ</param>
+		/// <param name="deads">коллекция умирающих</param>
+		/// <param name="newBorns">коллекция координат для вновь рождённых</param>
+		/// <param name="locker">локер коллекции всех существ</param>
+		/// <param name="personsCanvas">панель, на которой расположены существа</param>
+		/// <param name="statistics">класс статистики для отображения параметров на индикаторах</param>
 		public static void Iteration(
 			List<Person> persons, ConcurrentBag<Person> deads, ConcurrentBag<Point> newBorns,
 			object locker, Canvas personsCanvas, Statistics statistics)
@@ -166,13 +196,21 @@ namespace Characters.Model
 			statistics.CheckStatistics();
 		}
 
+		/// <summary>
+		/// установка координат существа
+		/// </summary>
+		/// <param name="location">координаты</param>
 		public void SetLocation(Point location)
 		{
 			X_LeftOnCanvas = newX = location.X;
 			Y_TopOnCanvas = newY = location.Y;
 		}
 
-		public void StartDying(Color dyingColor)//запуск анимации и таймера умирания
+		/// <summary>
+		/// запуск анимации и таймера умирания
+		/// </summary>
+		/// <param name="dyingColor">цвет, в который переходит в анимации умирающее существо</param>
+		public void StartDying(Color dyingColor)
 		{
 			state = PersonState.Dead;
 
@@ -530,14 +568,14 @@ namespace Characters.Model
 			var ageDeathProbability = GetAgeDeathProbability();
 
 			if (
-				lastWallImpact < -Parameters.Elasticity * Parameters.BurnDethThreshold ||
-				lastNegImpact < -(Parameters.G - Parameters.Gdelta) * Parameters.BurnDethThreshold ||
+				lastWallImpact < -Parameters.Elasticity * Parameters.BirthDethThreshold ||
+				lastNegImpact < -(Parameters.G - Parameters.Gdelta) * Parameters.BirthDethThreshold ||
 				ageDeathProbability)
 			{
 				deads.Add(this);
 			}
 
-			if (lastPosImpact > (Parameters.G + Parameters.Gdelta) * Parameters.BurnDethThreshold && this.state != PersonState.Dead)
+			if (lastPosImpact > (Parameters.G + Parameters.Gdelta) * Parameters.BirthDethThreshold && this.state != PersonState.Dead)
 			{
 				lastPosImpact = 0;
 				curPosImpact = 0;
